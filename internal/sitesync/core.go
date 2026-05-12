@@ -1,0 +1,228 @@
+package sitesync
+
+import (
+	"context"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/bestruirui/octopus/internal/model"
+	"github.com/bestruirui/octopus/internal/op"
+	"github.com/bestruirui/octopus/internal/utils/log"
+)
+
+type syncSnapshot struct {
+	accessToken  string
+	groups       []model.SiteUserGroup
+	tokens       []model.SiteToken
+	models       []model.SiteModel
+	prices       []model.SitePrice
+	groupResults []siteGroupSyncResult
+	status       model.SiteExecutionStatus
+	balance      float64
+	balanceUsed  float64
+	todayIncome  float64
+	message      string
+}
+
+func SyncAccount(ctx context.Context, accountID int) (*model.SiteSyncResult, error) {
+	siteRecord, account, err := loadSiteAccount(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshot, err := syncAccountState(ctx, siteRecord, account)
+	if err != nil {
+		updateErr := updateAccountSyncState(ctx, account.ID, model.SiteExecutionStatusFailed, err.Error(), "")
+		if updateErr != nil {
+			log.Warnf("failed to update site account sync state (account=%d): %v", account.ID, updateErr)
+		}
+		return nil, err
+	}
+
+	if err := persistSyncSnapshot(ctx, account.ID, snapshot); err != nil {
+		return nil, err
+	}
+
+	channelIDs, err := ProjectAccount(ctx, account.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	modelNames := make([]string, 0, len(snapshot.models))
+	for _, item := range snapshot.models {
+		modelNames = append(modelNames, item.ModelName)
+	}
+	slices.Sort(modelNames)
+
+	return &model.SiteSyncResult{
+		AccountID:       account.ID,
+		SiteID:          siteRecord.ID,
+		Status:          snapshot.status,
+		ChannelCount:    len(channelIDs),
+		GroupCount:      len(snapshot.groups),
+		TokenCount:      len(snapshot.tokens),
+		ModelCount:      len(snapshot.models),
+		ManagedChannels: channelIDs,
+		Models:          modelNames,
+		GroupResults:    exportSiteSyncGroupResults(snapshot.groupResults),
+		Message:         snapshot.message,
+	}, nil
+}
+
+func CheckinAccount(ctx context.Context, accountID int) (*model.SiteCheckinResult, error) {
+	siteRecord, account, err := loadSiteAccount(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	result, resolvedAccessToken, err := checkinAccountState(ctx, siteRecord, account)
+	if err != nil {
+		status := model.SiteExecutionStatusFailed
+		lowered := strings.ToLower(err.Error())
+		if strings.Contains(lowered, "not supported") || strings.Contains(lowered, "not found") {
+			status = model.SiteExecutionStatusSkipped
+		}
+		updateErr := updateAccountCheckinState(ctx, account, status, err.Error(), false, resolvedAccessToken)
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		return &model.SiteCheckinResult{AccountID: account.ID, SiteID: siteRecord.ID, Status: status, Message: err.Error()}, nil
+	}
+
+	result.AccountID = account.ID
+	result.SiteID = siteRecord.ID
+	if err := updateAccountCheckinState(ctx, account, result.Status, result.Message, result.Status == model.SiteExecutionStatusSuccess, resolvedAccessToken); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func SyncAll(ctx context.Context) {
+	sites, err := op.SiteList(ctx)
+	if err != nil {
+		log.Warnf("failed to list sites for sync: %v", err)
+		return
+	}
+	for _, siteRecord := range sites {
+		if !siteRecord.Enabled {
+			continue
+		}
+		for _, account := range siteRecord.Accounts {
+			if !account.Enabled || !account.AutoSync {
+				continue
+			}
+			if !waitSiteBatchInterval(ctx, 500*time.Millisecond) {
+				return
+			}
+			if _, err := SyncAccount(ctx, account.ID); err != nil {
+				log.Warnf("site account sync failed (account=%d): %v", account.ID, err)
+				if IsCloudflareProtectionError(err) {
+					waitSiteCloudflareRetryAfter(ctx, siteRecord.ID, account.ID, err)
+					break
+				}
+			}
+		}
+	}
+}
+
+func CheckinAll(ctx context.Context) {
+	sites, err := op.SiteList(ctx)
+	if err != nil {
+		log.Warnf("failed to list sites for checkin: %v", err)
+		return
+	}
+	now := time.Now()
+	for _, siteRecord := range sites {
+		if !siteRecord.Enabled {
+			continue
+		}
+		for index := range siteRecord.Accounts {
+			account := &siteRecord.Accounts[index]
+			if !account.Enabled || !account.AutoCheckin {
+				continue
+			}
+			if account.RandomCheckin {
+				nextAt, scheduleErr := ensureRandomCheckinSchedule(ctx, account, now)
+				if scheduleErr != nil {
+					log.Warnf("failed to ensure site account checkin schedule (account=%d): %v", account.ID, scheduleErr)
+					continue
+				}
+				if nextAt != nil && now.Before(*nextAt) {
+					continue
+				}
+			}
+			if !waitSiteBatchInterval(ctx, 500*time.Millisecond) {
+				return
+			}
+			if _, err := CheckinAccount(ctx, account.ID); err != nil {
+				log.Warnf("site account checkin failed (account=%d): %v", account.ID, err)
+				if IsCloudflareProtectionError(err) {
+					waitSiteCloudflareRetryAfter(ctx, siteRecord.ID, account.ID, err)
+					break
+				}
+			}
+		}
+	}
+}
+
+func waitSiteBatchInterval(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return true
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func waitSiteCloudflareRetryAfter(ctx context.Context, siteID int, accountID int, err error) {
+	retryAfter := CloudflareRetryAfter(err)
+	log.Warnf("site Cloudflare protection detected, skip remaining accounts this round (site=%d account=%d retry_after=%s)", siteID, accountID, retryAfter)
+	waitSiteBatchInterval(ctx, retryAfter)
+}
+
+func DeleteSite(ctx context.Context, siteID int) error {
+	siteRecord, err := op.SiteGet(siteID, ctx)
+	if err != nil {
+		return err
+	}
+	for _, account := range siteRecord.Accounts {
+		if err := deleteManagedChannelsByAccount(ctx, account.ID); err != nil {
+			return err
+		}
+	}
+	return op.SiteDel(siteID, ctx)
+}
+
+func ArchiveSite(ctx context.Context, siteID int) error {
+	siteRecord, err := op.SiteGet(siteID, ctx)
+	if err != nil {
+		return err
+	}
+	for _, account := range siteRecord.Accounts {
+		if err := deleteManagedChannelsByAccount(ctx, account.ID); err != nil {
+			return err
+		}
+	}
+	return op.SiteArchive(siteID, ctx)
+}
+
+func RestoreSite(ctx context.Context, siteID int) error {
+	return op.SiteRestore(siteID, ctx)
+}
+
+func ListArchivedSites(ctx context.Context) ([]model.Site, error) {
+	return op.SiteListArchived(ctx)
+}
+
+func DeleteSiteAccount(ctx context.Context, accountID int) error {
+	if err := deleteManagedChannelsByAccount(ctx, accountID); err != nil {
+		return err
+	}
+	return op.SiteAccountDel(accountID, ctx)
+}
