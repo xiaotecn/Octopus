@@ -55,12 +55,21 @@ func TestResolveSiteAccountProxyDisablesProxyWhenNoConfigExists(t *testing.T) {
 }
 
 func TestBuildManagedAuthHeadersUsesCookieThenBearerFallback(t *testing.T) {
-	headers := buildManagedAuthHeaders("sid=cookie-session")
+	headers := buildManagedAuthHeaders(&model.Site{BaseURL: "https://example.com"}, "sid=cookie-session")
 	if len(headers) != 2 {
 		t.Fatalf("expected two auth header candidates, got %d", len(headers))
 	}
 	if headers[0]["Cookie"] != "sid=cookie-session" {
 		t.Fatalf("expected cookie header candidate first, got %#v", headers[0])
+	}
+	if headers[0]["Origin"] != "https://example.com" {
+		t.Fatalf("expected origin header on cookie candidate, got %#v", headers[0])
+	}
+	if headers[0]["Referer"] != "https://example.com/console/token" {
+		t.Fatalf("expected referer header on cookie candidate, got %#v", headers[0])
+	}
+	if headers[0]["Cache-Control"] != "no-store" {
+		t.Fatalf("expected cache-control header on cookie candidate, got %#v", headers[0])
 	}
 	if headers[1]["Authorization"] != "Bearer sid=cookie-session" {
 		t.Fatalf("expected bearer fallback candidate second, got %#v", headers[1])
@@ -68,7 +77,7 @@ func TestBuildManagedAuthHeadersUsesCookieThenBearerFallback(t *testing.T) {
 }
 
 func TestBuildManagedAuthHeadersUsesBearerOnlyForPlainToken(t *testing.T) {
-	headers := buildManagedAuthHeaders("plain-token")
+	headers := buildManagedAuthHeaders(&model.Site{BaseURL: "https://example.com"}, "plain-token")
 	if len(headers) != 1 {
 		t.Fatalf("expected one auth header candidate, got %d", len(headers))
 	}

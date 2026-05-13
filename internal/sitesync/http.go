@@ -360,7 +360,7 @@ func requestJSONWithManagedAccessToken(ctx context.Context, siteRecord *model.Si
 
 func requestJSONWithManagedHeaders(ctx context.Context, siteRecord *model.Site, method string, requestURL string, body any, accessToken string, extraHeaders map[string]string, accounts ...*model.SiteAccount) (map[string]any, error) {
 	var firstErr error
-	for _, headers := range buildManagedAuthHeaders(accessToken) {
+	for _, headers := range buildManagedAuthHeaders(siteRecord, accessToken) {
 		payload, err := requestJSON(ctx, siteRecord, method, requestURL, body, mergeHeaders(headers, extraHeaders), accounts...)
 		if err == nil {
 			return payload, nil
@@ -375,7 +375,7 @@ func requestJSONWithManagedHeaders(ctx context.Context, siteRecord *model.Site, 
 	return nil, firstErr
 }
 
-func buildManagedAuthHeaders(accessToken string) []map[string]string {
+func buildManagedAuthHeaders(siteRecord *model.Site, accessToken string) []map[string]string {
 	token := strings.TrimSpace(accessToken)
 	if token == "" {
 		return []map[string]string{{}}
@@ -383,10 +383,29 @@ func buildManagedAuthHeaders(accessToken string) []map[string]string {
 
 	candidates := make([]map[string]string, 0, 2)
 	if looksLikeCookieToken(token) {
-		candidates = append(candidates, map[string]string{"Cookie": token})
+		cookieHeaders := map[string]string{"Cookie": token}
+		for key, value := range buildManagedCookieContextHeaders(siteRecord) {
+			cookieHeaders[key] = value
+		}
+		candidates = append(candidates, cookieHeaders)
 	}
 	candidates = append(candidates, map[string]string{"Authorization": ensureBearer(token)})
 	return candidates
+}
+
+func buildManagedCookieContextHeaders(siteRecord *model.Site) map[string]string {
+	if siteRecord == nil {
+		return nil
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(siteRecord.BaseURL), "/")
+	if baseURL == "" {
+		return nil
+	}
+	return map[string]string{
+		"Origin":        baseURL,
+		"Referer":       baseURL + "/console/token",
+		"Cache-Control": "no-store",
+	}
 }
 
 func looksLikeCookieToken(token string) bool {
