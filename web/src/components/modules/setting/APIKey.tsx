@@ -4,6 +4,7 @@ import { useCallback, useId, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { KeyRound, Plus, Loader, Trash2, Check, X, Info, CalendarDays, Pencil, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageWrapper } from '@/components/common/PageWrapper';
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -785,5 +786,19 @@ export function SettingAPIKey() {
                 </MorphingDialog>
             )}
         />
+    );
+}
+
+export function APIKeyPage() {
+    return (
+        <div className="h-full min-h-0 overflow-y-auto overscroll-contain rounded-t-3xl">
+            <PageWrapper className="pb-24 md:pb-4">
+                <APIKeyPanelBase
+                    idPrefix="apikey-page"
+                    containerClassName="rounded-3xl border border-border bg-card p-6 space-y-5 relative flex min-h-[32rem] flex-col"
+                    listClassName="space-y-2 min-h-0 flex-1 overflow-y-auto"
+                />
+            </PageWrapper>
+        </div>
     );
 }
