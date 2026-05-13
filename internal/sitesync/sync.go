@@ -54,27 +54,72 @@ func checkinAccountState(ctx context.Context, siteRecord *model.Site, account *m
 	case model.SitePlatformAnyRouter:
 		return checkinAnyRouter(ctx, siteRecord, account)
 	case model.SitePlatformNewAPI, model.SitePlatformOneAPI, model.SitePlatformOneHub:
-		accessToken, err := resolveManagedAccessToken(ctx, siteRecord, account)
-		if err != nil {
-			return nil, accessToken, err
-		}
-		payload, err := requestJSONWithManagedAccessToken(ctx, siteRecord, http.MethodPost, buildSiteURL(siteRecord.BaseURL, "/api/user/checkin"), nil, accessToken, account)
-		if err != nil {
-			lowered := strings.ToLower(err.Error())
-			if strings.Contains(lowered, "404") || strings.Contains(lowered, "not found") {
-				return &model.SiteCheckinResult{Status: model.SiteExecutionStatusSkipped, Message: "checkin is not supported by this platform"}, accessToken, nil
-			}
-			return nil, accessToken, err
-		}
-		success := jsonBool(payload["success"])
-		message := firstNonEmptyString(jsonString(payload["message"]), "checkin success")
-		if success || isAlreadyCheckedInMessage(message) {
-			return &model.SiteCheckinResult{Status: model.SiteExecutionStatusSuccess, Message: message, Reward: jsonString(nestedValue(payload, "data", "reward"))}, accessToken, nil
-		}
-		return &model.SiteCheckinResult{Status: model.SiteExecutionStatusFailed, Message: message}, accessToken, nil
+		return checkinManagedPlatform(ctx, siteRecord, account)
 	default:
 		return nil, "", fmt.Errorf("unsupported site platform: %s", siteRecord.Platform)
 	}
+}
+
+func checkinManagedPlatform(ctx context.Context, siteRecord *model.Site, account *model.SiteAccount) (*model.SiteCheckinResult, string, error) {
+	accessToken, err := resolveManagedAccessToken(ctx, siteRecord, account)
+	if err != nil {
+		return nil, accessToken, err
+	}
+
+	userID := firstManagedPlatformUserID(account)
+	if userID <= 0 && siteRequiresManagedUserIDHeader(siteRecord) {
+		discoveredUserID, discoverErr := discoverManagedUserID(ctx, siteRecord, accessToken, account)
+		if discoverErr == nil && discoveredUserID > 0 {
+			userID = discoveredUserID
+			rememberManagedPlatformUserID(userID, account)
+		}
+	}
+
+	if result, message, ok := anyRouterTryCheckinWithBearer(ctx, siteRecord, account, accessToken, userID); ok {
+		return result, accessToken, nil
+	} else if message != "" && !anyRouterShouldFallbackToCookieCheckin(message) {
+		if isManagedCheckinNotSupportedMessage(message) {
+			return &model.SiteCheckinResult{Status: model.SiteExecutionStatusSkipped, Message: "checkin is not supported by this platform"}, accessToken, nil
+		}
+		return &model.SiteCheckinResult{Status: model.SiteExecutionStatusFailed, Message: message}, accessToken, nil
+	}
+
+	result, message := anyRouterTryCheckinWithCookies(ctx, siteRecord, account, accessToken, userID)
+	if result != nil {
+		return result, accessToken, nil
+	}
+
+	alternateUserID, _ := anyRouterProbeAlternateUserIDByCookie(ctx, siteRecord, account, accessToken, userID)
+	if alternateUserID > 0 {
+		result, message = anyRouterTryCheckinWithCookies(ctx, siteRecord, account, accessToken, alternateUserID)
+		if result != nil {
+			rememberManagedPlatformUserID(alternateUserID, account)
+			return result, accessToken, nil
+		}
+	}
+
+	if isManagedCheckinNotSupportedMessage(message) {
+		return &model.SiteCheckinResult{Status: model.SiteExecutionStatusSkipped, Message: "checkin is not supported by this platform"}, accessToken, nil
+	}
+	return &model.SiteCheckinResult{
+		Status:  model.SiteExecutionStatusFailed,
+		Message: firstNonEmptyString(message, "checkin failed"),
+	}, accessToken, nil
+}
+
+func isManagedCheckinNotSupportedMessage(message string) bool {
+	text := strings.ToLower(strings.TrimSpace(message))
+	if text == "" {
+		return false
+	}
+	return strings.Contains(text, "invalid url (post /api/user/checkin)") ||
+		(strings.Contains(text, "http 404") && strings.Contains(text, "/api/user/checkin")) ||
+		strings.Contains(text, "checkin endpoint not found") ||
+		strings.Contains(text, "checkin is not supported") ||
+		strings.Contains(text, "does not support checkin") ||
+		strings.Contains(text, "not support checkin") ||
+		strings.Contains(text, "404") ||
+		strings.Contains(text, "not found")
 }
 
 func syncManagementPlatform(ctx context.Context, siteRecord *model.Site, account *model.SiteAccount) (*syncSnapshot, error) {

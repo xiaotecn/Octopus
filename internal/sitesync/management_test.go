@@ -67,6 +67,64 @@ func TestRequestJSONWithManagedAccessTokenHandlesShieldedRawSessionCookie(t *tes
 	}
 }
 
+func TestCheckinManagedPlatformFallsBackToCookieSignIn(t *testing.T) {
+	platformUserID := 131936
+	signInCalls := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.URL.Path == "/api/user/checkin":
+			if strings.Contains(r.Header.Get("Authorization"), cookieShieldedToken) {
+				_, _ = w.Write([]byte(`{"success":false,"message":"无权进行此操作，未登录且未提供 access token"}`))
+				return
+			}
+
+			headers := r.Header.Get("Cookie")
+			if !strings.Contains(headers, "session="+cookieShieldedToken) {
+				_, _ = w.Write([]byte(`{"success":false,"message":"未登录"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"success":true,"message":"checkin success","data":{"reward":"1"}}`))
+		case r.URL.Path == "/api/user/sign_in":
+			signInCalls++
+			if !strings.Contains(r.Header.Get("Cookie"), "session="+cookieShieldedToken) {
+				_, _ = w.Write([]byte(`{"success":false,"message":"未登录"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"success":true,"message":"checked in","data":{"reward":"2"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	result, accessToken, err := checkinAccountState(context.Background(), &model.Site{
+		Platform: model.SitePlatformNewAPI,
+		BaseURL:  server.URL,
+	}, &model.SiteAccount{
+		CredentialType: model.SiteCredentialTypeAccessToken,
+		AccessToken:    cookieShieldedToken,
+		PlatformUserID: &platformUserID,
+	})
+	if err != nil {
+		t.Fatalf("checkinAccountState returned error: %v", err)
+	}
+	if accessToken != cookieShieldedToken {
+		t.Fatalf("expected resolved access token to stay unchanged, got %q", accessToken)
+	}
+	if result == nil || result.Status != model.SiteExecutionStatusSuccess {
+		t.Fatalf("expected checkin success result, got %+v", result)
+	}
+	if result.Reward != "2" {
+		t.Fatalf("expected cookie sign_in reward to be returned, got %+v", result)
+	}
+	if signInCalls == 0 {
+		t.Fatalf("expected cookie sign_in fallback to be attempted")
+	}
+}
+
 func TestSyncManagementPlatformDiscoversNewAPIUserID(t *testing.T) {
 	observedTokenUserHeader := ""
 	observedGroupUserHeader := ""
