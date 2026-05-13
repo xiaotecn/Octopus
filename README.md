@@ -47,6 +47,23 @@ docker compose up -d --build
 
 > The compose file builds the current source code and persists runtime data in `./data`.
 
+### Docker Image via GitHub Actions
+
+Push to the `main` branch, or run the `docker-image` workflow manually, and GitHub Actions will build and publish:
+
+```bash
+ghcr.io/xiaotecn/octopus:latest
+```
+
+After the image is published, the server can run:
+
+```bash
+docker pull ghcr.io/xiaotecn/octopus:latest
+docker run -d --name octopus -p 8080:8080 -v /root/octopus-data:/app/data ghcr.io/xiaotecn/octopus:latest
+```
+
+> If this is your first time using GHCR, set the package visibility to public in GitHub Packages, or log in on the server before pulling.
+
 
 ### 📦 Download from Release
 

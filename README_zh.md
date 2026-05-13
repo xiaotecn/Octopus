@@ -45,6 +45,23 @@ cd octopus
 docker compose up -d --build
 ```
 
+### 通过 GitHub Actions 构建 Docker 镜像
+
+推送到 `main` 分支，或者手动执行 `docker-image` workflow，GitHub Actions 会自动构建并发布镜像：
+
+```bash
+ghcr.io/xiaotecn/octopus:latest
+```
+
+镜像发布后，服务器可直接执行：
+
+```bash
+docker pull ghcr.io/xiaotecn/octopus:latest
+docker run -d --name octopus -p 8080:8080 -v /root/octopus-data:/app/data ghcr.io/xiaotecn/octopus:latest
+```
+
+> 第一次使用 GHCR 时，需要在 GitHub Packages 里把包设为 public，或者先在服务器上执行 `docker login ghcr.io`。
+
 > `docker-compose.yml` 会基于当前仓库源码构建镜像，并把运行数据持久化到 `./data`。
 
 
