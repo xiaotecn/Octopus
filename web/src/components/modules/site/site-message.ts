@@ -7,7 +7,7 @@ type MatchResult = {
     values?: Record<string, string | number>;
 };
 
-const missingGroupKeyNoUsableKeyPattern = /^site sync requires a key for group "([^"]+)"; create a key for that group on the site and sync again$/i;
+const missingGroupKeyNoUsableKeyPattern = /^site sync requires (?:a key|a usable api key) for group "([^"]+)"; (?:fill the account API Key field or )?create a (?:plain )?key for (?:that|this) group on the site and sync again$/i;
 const missingGroupKeyFallbackPattern = /^site sync could not resolve models for group "([^"]+)"; create a key for that group on the site and sync again$/i;
 
 function matchSiteMessage(message: string): MatchResult | null {
@@ -47,12 +47,12 @@ function fallbackTranslate(locale: Locale, key: string, values?: Record<string, 
         case 'siteSync.errors.missingGroupKey':
             switch (locale) {
                 case 'en':
-                    return interpolate('Group "{groupKey}" has no available key. Create a key for this group on the site and sync again.', values);
+                    return interpolate('Group "{groupKey}" has no usable API key. Fill the account API Key field or create a plain key for this group on the site, then sync again.', values);
                 case 'zh_hant':
-                    return interpolate('分組「{groupKey}」沒有可用的 Key。請先到站點建立這個分組的 Key，再重新同步。', values);
+                    return interpolate('分組「{groupKey}」沒有可用的 API Key。請先在帳號中填入 API Key，或到站點建立這個分組的明文 Key，然後重新同步。', values);
                 case 'zh_hans':
                 default:
-                    return interpolate('分组「{groupKey}」没有可用的 Key。请先到站点创建这个分组的 Key，再重新同步。', values);
+                    return interpolate('分组“{groupKey}”没有可用的 API Key。请先在账号中填入 API Key，或到站点创建这个分组的明文 Key，然后重新同步。', values);
             }
         case 'siteSync.errors.missingGroupModelsOrKey':
             switch (locale) {

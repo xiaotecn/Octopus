@@ -166,7 +166,7 @@ const PLATFORM_LABELS: Record<SitePlatform, string> = {
 const CREDENTIAL_LABELS: Record<SiteCredentialType, string> = {
   [SiteCredentialType.UsernamePassword]: "用户名 / 密码",
   [SiteCredentialType.AccessToken]: "Access Token",
-  [SiteCredentialType.APIKey]: "API Key",
+  [SiteCredentialType.APIKey]: "仅 API Key",
 };
 
 type HealthTone = "default" | "danger" | "muted" | "warning";
@@ -273,6 +273,17 @@ function defaultCredentialType(platform: SitePlatform): SiteCredentialType {
   }
 }
 
+function isDirectAPIPlatform(platform: SitePlatform) {
+  switch (platform) {
+    case SitePlatform.OpenAI:
+    case SitePlatform.Claude:
+    case SitePlatform.Gemini:
+      return true;
+    default:
+      return false;
+  }
+}
+
 function credentialOptions(platform: SitePlatform) {
   switch (platform) {
     case SitePlatform.Sub2API:
@@ -280,7 +291,7 @@ function credentialOptions(platform: SitePlatform) {
     case SitePlatform.OpenAI:
     case SitePlatform.Claude:
     case SitePlatform.Gemini:
-      return [SiteCredentialType.APIKey, SiteCredentialType.AccessToken];
+      return [SiteCredentialType.APIKey];
     default:
       return [
         SiteCredentialType.UsernamePassword,
@@ -290,11 +301,42 @@ function credentialOptions(platform: SitePlatform) {
   }
 }
 
+function normalizeCredentialTypeForPlatform(
+  platform: SitePlatform,
+  credentialType: SiteCredentialType,
+) {
+  const options = credentialOptions(platform);
+  return options.includes(credentialType)
+    ? credentialType
+    : defaultCredentialType(platform);
+}
+
+function requiresSyncAPIKey(
+  platform: SitePlatform,
+  credentialType: SiteCredentialType,
+) {
+  return (
+    isDirectAPIPlatform(platform) ||
+    credentialType === SiteCredentialType.APIKey
+  );
+}
+
+function supportsManagedCheckinConfig(
+  platform: SitePlatform,
+  credentialType: SiteCredentialType,
+) {
+  return (
+    sitePlatformSupportsCheckin(platform) &&
+    credentialType !== SiteCredentialType.APIKey
+  );
+}
+
 function createEmptyAccountForm(site: SiteRecord): SiteAccountFormState {
+  const credentialType = defaultCredentialType(site.platform);
   return {
     site_id: site.id,
     name: "",
-    credential_type: defaultCredentialType(site.platform),
+    credential_type: credentialType,
     username: "",
     password: "",
     access_token: "",
@@ -305,18 +347,25 @@ function createEmptyAccountForm(site: SiteRecord): SiteAccountFormState {
     account_proxy: "",
     enabled: true,
     auto_sync: true,
-    auto_checkin: true,
+    auto_checkin: supportsManagedCheckinConfig(site.platform, credentialType),
     random_checkin: false,
     checkin_interval_hours: 24,
     checkin_random_window_minutes: 120,
   };
 }
 
-function createAccountForm(account: SiteAccount): SiteAccountFormState {
+function createAccountForm(
+  account: SiteAccount,
+  platform: SitePlatform,
+): SiteAccountFormState {
+  const credentialType = normalizeCredentialTypeForPlatform(
+    platform,
+    account.credential_type,
+  );
   return {
     site_id: account.site_id,
     name: account.name,
-    credential_type: account.credential_type,
+    credential_type,
     username: account.username,
     password: account.password,
     access_token: account.access_token,
@@ -330,8 +379,12 @@ function createAccountForm(account: SiteAccount): SiteAccountFormState {
     account_proxy: account.account_proxy ?? "",
     enabled: account.enabled,
     auto_sync: account.auto_sync,
-    auto_checkin: account.auto_checkin,
-    random_checkin: account.random_checkin,
+    auto_checkin: supportsManagedCheckinConfig(platform, credentialType)
+      ? account.auto_checkin
+      : false,
+    random_checkin: supportsManagedCheckinConfig(platform, credentialType)
+      ? account.random_checkin
+      : false,
     checkin_interval_hours: account.checkin_interval_hours,
     checkin_random_window_minutes: account.checkin_random_window_minutes,
   };
@@ -1094,6 +1147,16 @@ export function Site() {
 
   const currentPlatform = accountSite?.platform ?? SitePlatform.NewAPI;
   const currentCredentialOptions = credentialOptions(currentPlatform);
+  const currentAccountCredentialType = accountForm
+    ? normalizeCredentialTypeForPlatform(
+        currentPlatform,
+        accountForm.credential_type,
+      )
+    : defaultCredentialType(currentPlatform);
+  const canConfigureCheckin = supportsManagedCheckinConfig(
+    currentPlatform,
+    currentAccountCredentialType,
+  );
 
   function openCreateSiteDialog() {
     setEditingSite(null);
@@ -1125,7 +1188,7 @@ export function Site() {
   function openEditAccountDialog(site: SiteRecord, account: SiteAccount) {
     setAccountSite(site);
     setEditingAccount(account);
-    setAccountForm(createAccountForm(account));
+    setAccountForm(createAccountForm(account, site.platform));
     setAccountDialogOpen(true);
   }
 
@@ -1243,7 +1306,25 @@ export function Site() {
       toast.error("请输入 API Key");
       return;
     }
-    if (accountForm.auto_checkin && accountForm.random_checkin) {
+    const trimmedAccessToken =
+      accountForm.credential_type === SiteCredentialType.AccessToken
+        ? accountForm.access_token.trim()
+        : "";
+    const trimmedAPIKey = accountForm.api_key.trim();
+    const canConfigureCheckin = supportsManagedCheckinConfig(
+      currentPlatform,
+      accountForm.credential_type,
+    );
+
+    if (
+      requiresSyncAPIKey(currentPlatform, accountForm.credential_type) &&
+      !trimmedAPIKey
+    ) {
+      toast.error("请输入 API Key");
+      return;
+    }
+
+    if (canConfigureCheckin && accountForm.auto_checkin && accountForm.random_checkin) {
       if (
         !Number.isFinite(accountForm.checkin_interval_hours) ||
         accountForm.checkin_interval_hours < 1 ||
@@ -1283,21 +1364,18 @@ export function Site() {
       return;
     }
 
-    const trimmedAccessToken =
-      accountForm.credential_type === SiteCredentialType.AccessToken
-        ? accountForm.access_token.trim()
-        : "";
-    const trimmedAPIKey =
-      accountForm.credential_type === SiteCredentialType.APIKey
-        ? accountForm.api_key.trim()
-        : "";
-
     const payload = {
       site_id: accountForm.site_id,
       name: accountForm.name.trim(),
       credential_type: accountForm.credential_type,
-      username: accountForm.username.trim(),
-      password: accountForm.password.trim(),
+      username:
+        accountForm.credential_type === SiteCredentialType.UsernamePassword
+          ? accountForm.username.trim()
+          : "",
+      password:
+        accountForm.credential_type === SiteCredentialType.UsernamePassword
+          ? accountForm.password.trim()
+          : "",
       access_token: trimmedAccessToken,
       api_key: trimmedAPIKey,
       refresh_token: accountForm.refresh_token.trim(),
@@ -1306,8 +1384,11 @@ export function Site() {
       account_proxy: accountForm.account_proxy.trim(),
       enabled: accountForm.enabled,
       auto_sync: accountForm.auto_sync,
-      auto_checkin: accountForm.auto_checkin,
-      random_checkin: accountForm.random_checkin,
+      auto_checkin: canConfigureCheckin ? accountForm.auto_checkin : false,
+      random_checkin:
+        canConfigureCheckin && accountForm.auto_checkin
+          ? accountForm.random_checkin
+          : false,
       checkin_interval_hours: Math.max(
         1,
         Math.trunc(accountForm.checkin_interval_hours || 24),
@@ -1942,6 +2023,11 @@ export function Site() {
                                           ]
                                         }
                                       </Badge>
+                                      {account.api_key.trim() ? (
+                                        <Badge variant="outline">
+                                          API Key 已配置
+                                        </Badge>
+                                      ) : null}
                                       <Badge
                                         variant="outline"
                                         className={
@@ -1978,11 +2064,17 @@ export function Site() {
                                         {account.auto_sync ? "自动同步" : "手动同步"}
                                       </span>
                                       <span>
-                                        {account.auto_checkin
-                                          ? account.random_checkin
-                                            ? "随机签到"
-                                            : "自动签到"
-                                          : "手动签到"}
+                                        {sitePlatformSupportsCheckin(
+                                          site.platform,
+                                        ) &&
+                                        account.credential_type !==
+                                          SiteCredentialType.APIKey
+                                          ? account.auto_checkin
+                                            ? account.random_checkin
+                                              ? "随机签到"
+                                              : "自动签到"
+                                            : "手动签到"
+                                          : "不支持签到"}
                                       </span>
                                       {account.account_proxy ? (
                                         <span className="truncate">
@@ -2644,7 +2736,7 @@ export function Site() {
                 </label>
 
                 <label className="grid gap-2 text-sm">
-                  <span className="font-medium">凭据类型</span>
+                  <span className="font-medium">登录凭据类型</span>
                   <Select
                     value={accountForm.credential_type}
                     onValueChange={(value) =>
@@ -2653,17 +2745,19 @@ export function Site() {
                           return current;
                         }
                         const nextType = value as SiteCredentialType;
+                        const nextCanCheckin = supportsManagedCheckinConfig(
+                          currentPlatform,
+                          nextType,
+                        );
                         return {
                           ...current,
                           credential_type: nextType,
-                          access_token:
-                            nextType === SiteCredentialType.AccessToken
-                              ? current.access_token
-                              : "",
-                          api_key:
-                            nextType === SiteCredentialType.APIKey
-                              ? current.api_key
-                              : "",
+                          auto_checkin: nextCanCheckin
+                            ? current.auto_checkin
+                            : false,
+                          random_checkin: nextCanCheckin
+                            ? current.random_checkin
+                            : false,
                         };
                       })
                     }
@@ -2679,6 +2773,9 @@ export function Site() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <span className="text-xs text-muted-foreground">
+                    Access Token / 用户名密码只用于登录、签到和后台拉取分组；API Key 只用于模型同步与托管调用。
+                  </span>
                 </label>
               </div>
 
@@ -2724,7 +2821,7 @@ export function Site() {
               SiteCredentialType.AccessToken ? (
                 <div className="grid gap-4">
                   <label className="grid gap-2 text-sm">
-                    <span className="font-medium">Access Token</span>
+                    <span className="font-medium">Access Token / Session</span>
                     <Input
                       value={accountForm.access_token}
                       onChange={(event) =>
@@ -2790,9 +2887,9 @@ export function Site() {
                 </div>
               ) : null}
 
-              {accountForm.credential_type === SiteCredentialType.APIKey ? (
+              <div className="grid gap-2 rounded-2xl border border-border/60 bg-muted/10 p-4">
                 <label className="grid gap-2 text-sm">
-                  <span className="font-medium">API Key</span>
+                  <span className="font-medium">同步 / 调用 API Key</span>
                   <Input
                     value={accountForm.api_key}
                     onChange={(event) =>
@@ -2806,7 +2903,15 @@ export function Site() {
                     className="rounded-xl"
                   />
                 </label>
-              ) : null}
+                <span className="text-xs text-muted-foreground">
+                  站点同步模型、分组映射后的托管调用只认这里的 API Key。若站点后台只能看到脱敏 Key，请手动填入明文 Key。
+                </span>
+                {accountForm.credential_type === SiteCredentialType.APIKey ? (
+                  <span className="text-xs text-amber-700 dark:text-amber-300">
+                    当前为仅 API Key 模式：不会登录站点，也不会执行签到。
+                  </span>
+                ) : null}
+              </div>
 
               {currentPlatform === SitePlatform.NewAPI ? (
                 <label className="grid gap-2 text-sm">
@@ -2902,7 +3007,8 @@ export function Site() {
                     </div>
                   </div>
                   <Switch
-                    checked={accountForm.auto_checkin}
+                    checked={canConfigureCheckin ? accountForm.auto_checkin : false}
+                    disabled={!canConfigureCheckin}
                     onCheckedChange={(checked) =>
                       setAccountForm((current) =>
                         current
@@ -2924,7 +3030,12 @@ export function Site() {
                     </div>
                   </div>
                   <Switch
-                    checked={accountForm.random_checkin}
+                    checked={
+                      canConfigureCheckin && accountForm.auto_checkin
+                        ? accountForm.random_checkin
+                        : false
+                    }
+                    disabled={!canConfigureCheckin || !accountForm.auto_checkin}
                     onCheckedChange={(checked) =>
                       setAccountForm((current) =>
                         current
@@ -2936,7 +3047,9 @@ export function Site() {
                 </div>
               </div>
 
-              {accountForm.auto_checkin && accountForm.random_checkin ? (
+              {canConfigureCheckin &&
+              accountForm.auto_checkin &&
+              accountForm.random_checkin ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="grid gap-2 text-sm">
                     <span className="font-medium">最小签到间隔（小时）</span>
@@ -2999,7 +3112,9 @@ export function Site() {
                   key 会聚合到同一个 channel；多端点兼容站点会按模型已归属的
                   请求端点格式继续拆成独立托管 channel。
                 </p>
-                {accountForm.auto_checkin && accountForm.random_checkin ? (
+                {canConfigureCheckin &&
+                accountForm.auto_checkin &&
+                accountForm.random_checkin ? (
                   <p>
                     随机签到会基于“上次成功签到时间 + 最小间隔 + 0
                     到随机延迟窗口”的规则生成下次执行时间，适合需要接近 24

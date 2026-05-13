@@ -544,7 +544,7 @@ func TestSyncManagementPlatformReturnsStableMissingGroupKeyError(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected syncManagementPlatform to fail when no usable key exists")
 	}
-	if !strings.Contains(err.Error(), `site sync requires a key for group "default"; create a key for that group on the site and sync again`) {
+	if !strings.Contains(err.Error(), `site sync requires a usable API key for group "default"; fill the account API Key field or create a plain key on the site and sync again`) {
 		t.Fatalf("expected stable missing-key error, got %v", err)
 	}
 }

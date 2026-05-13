@@ -197,6 +197,7 @@ func parseAllAPIHubAccountRow(row rawImportObject) (importedAccountInput, string
 	authType := strings.ToLower(strings.TrimSpace(asString(row["authType"])))
 	username := firstNonEmptyString(asString(accountInfo["username"]), asString(row["username"]), rowID)
 	accessTokenCandidate := firstNonEmptyString(asString(accountInfo["access_token"]), asString(row["access_token"]))
+	apiKeyCandidate := firstNonEmptyString(asString(accountInfo["api_key"]), asString(row["api_key"]))
 	refreshTokenCandidate := firstNonEmptyString(asString(accountInfo["refresh_token"]), asString(row["refresh_token"]))
 	tokenExpiresAt := asInt64(accountInfo["token_expires_at"])
 	cookieSession := asString(cookieAuth["sessionCookie"])
@@ -226,24 +227,28 @@ func parseAllAPIHubAccountRow(row rawImportObject) (importedAccountInput, string
 		}
 		input.CredentialType = model.SiteCredentialTypeAccessToken
 		input.AccessToken = cookieSession
+		input.APIKey = apiKeyCandidate
 	case "access_token", "session":
 		if accessTokenCandidate == "" {
 			return importedAccountInput{}, fmt.Sprintf("跳过 ALL-API-Hub 账号 %s：access_token 缺失", rowID), false
 		}
 		if isDirectImportPlatform(platform) {
+			directKey := firstNonEmptyString(apiKeyCandidate, accessTokenCandidate)
 			input.CredentialType = model.SiteCredentialTypeAPIKey
-			input.APIKey = accessTokenCandidate
+			input.APIKey = directKey
 			input.AutoCheckin = false
 		} else {
 			input.CredentialType = model.SiteCredentialTypeAccessToken
 			input.AccessToken = accessTokenCandidate
+			input.APIKey = apiKeyCandidate
 		}
 	case "api_key":
-		if accessTokenCandidate == "" {
+		directKey := firstNonEmptyString(apiKeyCandidate, accessTokenCandidate)
+		if directKey == "" {
 			return importedAccountInput{}, fmt.Sprintf("跳过 ALL-API-Hub 账号 %s：api_key 缺失", rowID), false
 		}
 		input.CredentialType = model.SiteCredentialTypeAPIKey
-		input.APIKey = accessTokenCandidate
+		input.APIKey = directKey
 		input.AutoCheckin = false
 	default:
 		return importedAccountInput{}, fmt.Sprintf("跳过 ALL-API-Hub 账号 %s：authType=%s 不支持离线导入", rowID, firstNonEmptyString(authType, "unknown")), false

@@ -9,7 +9,7 @@ import (
 	"github.com/bestruirui/octopus/internal/model"
 )
 
-func TestSyncSub2APIFallsBackToAccessTokenWhenKeyListIsEmpty(t *testing.T) {
+func TestSyncSub2APIUsesManualAPIKeyWhenKeyListIsEmpty(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -29,7 +29,7 @@ func TestSyncSub2APIFallsBackToAccessTokenWhenKeyListIsEmpty(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(`{"data":[{"id":7,"name":"vip"}]}`))
 		case "/models":
-			if r.Header.Get("Authorization") != "Bearer sub2-session-token" {
+			if r.Header.Get("Authorization") != "Bearer sk-manual-sync-key" {
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 				return
@@ -47,6 +47,7 @@ func TestSyncSub2APIFallsBackToAccessTokenWhenKeyListIsEmpty(t *testing.T) {
 	}, &model.SiteAccount{
 		CredentialType: model.SiteCredentialTypeAccessToken,
 		AccessToken:    "Bearer sub2-session-token",
+		APIKey:         "sk-manual-sync-key",
 	})
 	if err != nil {
 		t.Fatalf("syncSub2API returned error: %v", err)
@@ -54,8 +55,8 @@ func TestSyncSub2APIFallsBackToAccessTokenWhenKeyListIsEmpty(t *testing.T) {
 	if len(snapshot.tokens) != 1 {
 		t.Fatalf("expected one fallback token, got %+v", snapshot.tokens)
 	}
-	if snapshot.tokens[0].Token != "sub2-session-token" {
-		t.Fatalf("expected fallback token to strip Bearer prefix, got %+v", snapshot.tokens[0])
+	if snapshot.tokens[0].Token != "sk-manual-sync-key" {
+		t.Fatalf("expected fallback token to use manual api key, got %+v", snapshot.tokens[0])
 	}
 	if len(snapshot.groups) != 2 {
 		t.Fatalf("expected fetched groups plus default fallback group, got %+v", snapshot.groups)
@@ -72,5 +73,35 @@ func TestSyncSub2APIFallsBackToAccessTokenWhenKeyListIsEmpty(t *testing.T) {
 	}
 	if len(snapshot.models) != 2 {
 		t.Fatalf("expected models discovered via fallback token, got %+v", snapshot.models)
+	}
+}
+
+func TestSyncSub2APIRequiresAPIKeyWhenKeyListIsEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/api/v1/keys":
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		case "/api/v1/groups/available":
+			_, _ = w.Write([]byte(`{"data":[{"id":7,"name":"vip"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	_, err := syncSub2API(context.Background(), &model.Site{
+		BaseURL:  server.URL,
+		Platform: model.SitePlatformSub2API,
+	}, &model.SiteAccount{
+		CredentialType: model.SiteCredentialTypeAccessToken,
+		AccessToken:    "Bearer sub2-session-token",
+	})
+	if err == nil {
+		t.Fatalf("expected syncSub2API to fail when no key is available")
+	}
+	if err.Error() != `site sync requires a usable API key for group "default"; fill the account API Key field or create a plain key on the site and sync again` {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

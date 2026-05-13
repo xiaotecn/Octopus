@@ -49,30 +49,19 @@ func syncAnyRouter(ctx context.Context, siteRecord *model.Site, account *model.S
 	if err != nil {
 		return nil, err
 	}
-	if len(tokens) == 0 && account.CredentialType == model.SiteCredentialTypeAccessToken && strings.TrimSpace(account.AccessToken) != "" {
+	if len(tokens) == 0 && resolveSyncAPIKey(account) != "" {
 		tokens = append(tokens, model.SiteToken{
 			Name:      "default",
-			Token:     strings.TrimSpace(account.AccessToken),
+			Token:     resolveSyncAPIKey(account),
 			GroupKey:  model.SiteDefaultGroupKey,
 			GroupName: model.SiteDefaultGroupName,
 			Enabled:   true,
-			Source:    "access_token_fallback",
-			IsDefault: true,
-		})
-	}
-	if len(tokens) == 0 && strings.TrimSpace(account.APIKey) != "" {
-		tokens = append(tokens, model.SiteToken{
-			Name:      "default",
-			Token:     strings.TrimSpace(account.APIKey),
-			GroupKey:  model.SiteDefaultGroupKey,
-			GroupName: model.SiteDefaultGroupName,
-			Enabled:   true,
-			Source:    "fallback",
+			Source:    "manual",
 			IsDefault: true,
 		})
 	}
 	if len(tokens) == 0 {
-		return nil, fmt.Errorf("site sync requires a key for group %q; create a key for that group on the site and sync again", model.SiteDefaultGroupKey)
+		return nil, missingSiteSyncAPIKeyError()
 	}
 
 	groups, err := fetchAnyRouterManagementGroups(ctx, siteRecord, account, accessToken, userID)

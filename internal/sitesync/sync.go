@@ -140,11 +140,11 @@ func syncManagementPlatform(ctx context.Context, siteRecord *model.Site, account
 	if err != nil {
 		groups = nil
 	}
-	if len(tokens) == 0 && strings.TrimSpace(account.APIKey) != "" {
-		tokens = append(tokens, model.SiteToken{Name: "default", Token: strings.TrimSpace(account.APIKey), GroupKey: model.SiteDefaultGroupKey, GroupName: model.SiteDefaultGroupName, Enabled: true, Source: "fallback", IsDefault: true})
+	if len(tokens) == 0 && resolveSyncAPIKey(account) != "" {
+		tokens = append(tokens, model.SiteToken{Name: "default", Token: resolveSyncAPIKey(account), GroupKey: model.SiteDefaultGroupKey, GroupName: model.SiteDefaultGroupName, Enabled: true, Source: "manual", IsDefault: true})
 	}
 	if len(tokens) == 0 {
-		return nil, fmt.Errorf("site sync requires a key for group %q; create a key for that group on the site and sync again", model.SiteDefaultGroupKey)
+		return nil, missingSiteSyncAPIKeyError()
 	}
 
 	groups = mergeSiteGroups(groups, tokens)
@@ -256,17 +256,11 @@ func syncSub2APIWithAccessToken(ctx context.Context, siteRecord *model.Site, acc
 	if err != nil {
 		return nil, err
 	}
-	if len(tokens) == 0 && strings.TrimSpace(account.APIKey) != "" {
-		tokens = append(tokens, model.SiteToken{Name: "default", Token: strings.TrimSpace(account.APIKey), GroupKey: model.SiteDefaultGroupKey, GroupName: model.SiteDefaultGroupName, Enabled: true, Source: "fallback", IsDefault: true})
+	if len(tokens) == 0 && resolveSyncAPIKey(account) != "" {
+		tokens = append(tokens, model.SiteToken{Name: "default", Token: resolveSyncAPIKey(account), GroupKey: model.SiteDefaultGroupKey, GroupName: model.SiteDefaultGroupName, Enabled: true, Source: "manual", IsDefault: true})
 	}
 	if len(tokens) == 0 {
-		sessionToken := stripBearerPrefix(accessToken)
-		if sessionToken != "" {
-			tokens = append(tokens, model.SiteToken{Name: "default", Token: sessionToken, GroupKey: model.SiteDefaultGroupKey, GroupName: model.SiteDefaultGroupName, Enabled: true, Source: "access_token_fallback", IsDefault: true})
-		}
-	}
-	if len(tokens) == 0 {
-		return nil, fmt.Errorf("site sync requires a key for group %q; create a key for that group on the site and sync again", model.SiteDefaultGroupKey)
+		return nil, missingSiteSyncAPIKeyError()
 	}
 
 	groups, err := fetchSub2APIGroups(ctx, siteRecord, account, accessToken, tokens)
@@ -308,7 +302,7 @@ func syncOfficialPlatform(ctx context.Context, siteRecord *model.Site, account *
 func syncWithDirectToken(ctx context.Context, siteRecord *model.Site, account *model.SiteAccount, token string, source string) (*syncSnapshot, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, fmt.Errorf("direct token is required")
+		return nil, fmt.Errorf("api key is required")
 	}
 	models, err := fetchModelsForSiteToken(ctx, siteRecord, account, model.SiteToken{Token: token, GroupKey: model.SiteDefaultGroupKey, GroupName: model.SiteDefaultGroupName, Enabled: true})
 	if err != nil {
@@ -398,14 +392,16 @@ func resolveDirectToken(account *model.SiteAccount) string {
 	if account == nil {
 		return ""
 	}
-	switch account.CredentialType {
-	case model.SiteCredentialTypeAPIKey:
-		return strings.TrimSpace(account.APIKey)
-	case model.SiteCredentialTypeAccessToken:
-		return strings.TrimSpace(account.AccessToken)
+	return resolveSyncAPIKey(account)
+}
+
+func resolveSyncAPIKey(account *model.SiteAccount) string {
+	if account == nil {
+		return ""
 	}
-	if strings.TrimSpace(account.APIKey) != "" {
-		return strings.TrimSpace(account.APIKey)
-	}
-	return strings.TrimSpace(account.AccessToken)
+	return strings.TrimSpace(account.APIKey)
+}
+
+func missingSiteSyncAPIKeyError() error {
+	return fmt.Errorf("site sync requires a usable API key for group %q; fill the account API Key field or create a plain key on the site and sync again", model.SiteDefaultGroupKey)
 }

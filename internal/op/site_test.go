@@ -162,6 +162,9 @@ func TestSiteImportAllAPIHubImportsAndUpdatesAccounts(t *testing.T) {
 		if account.AccessToken != "managed-session-token" {
 			t.Fatalf("expected managed access token to be imported, got %q", account.AccessToken)
 		}
+		if account.APIKey != "sk-managed-sync-key" {
+			t.Fatalf("expected managed api key fallback to be imported, got %q", account.APIKey)
+		}
 		if account.PlatformUserID == nil || *account.PlatformUserID != 7788 {
 			t.Fatalf("expected managed platform user id 7788, got %#v", account.PlatformUserID)
 		}
@@ -364,6 +367,7 @@ func buildAllAPIHubImportPayload(managedUsername string) map[string]any {
 						"id":           7788,
 						"username":     managedUsername,
 						"access_token": "managed-session-token",
+						"api_key":      "sk-managed-sync-key",
 					},
 					"checkIn": map[string]any{
 						"autoCheckInEnabled": true,
