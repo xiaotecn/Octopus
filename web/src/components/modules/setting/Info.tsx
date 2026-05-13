@@ -16,11 +16,18 @@ export function SettingInfo() {
 
     const backendNowVersion = nowVersionQuery.data || '';
     const latestVersion = latestInfoQuery.data?.tag_name || '';
-
-    // 前端版本与后端当前版本不一致 → 浏览器缓存问题
-    const isCacheMismatch = !!backendNowVersion && backendNowVersion !== APP_VERSION;
-    // 最新版本与后端当前版本不一致 → 有新版本可更新
-    const hasNewVersion = latestVersion && backendNowVersion && latestVersion !== backendNowVersion;
+    const isStableVersion = (value: string) => /^v?\d+\.\d+\.\d+([-.].+)?$/.test(value);
+    const isSameOrAheadOfLatest = (current: string, latest: string) => {
+        if (!current || !latest) return false;
+        if (current === latest) return true;
+        return current.startsWith(`${latest}-`) || current.startsWith(`${latest}+`);
+    };
+    const computedIsCacheMismatch = !!backendNowVersion && !!APP_VERSION && backendNowVersion !== APP_VERSION;
+    const computedHasNewVersion = !!latestVersion &&
+        !!backendNowVersion &&
+        isStableVersion(latestVersion) &&
+        isStableVersion(backendNowVersion) &&
+        !isSameOrAheadOfLatest(backendNowVersion, latestVersion);
 
     const clearCacheAndReload = async () => {
         // 通知 Service Worker 清理缓存
@@ -120,7 +127,7 @@ export function SettingInfo() {
             </div>
 
             {/* 浏览器缓存问题警告 */}
-            {isCacheMismatch && (
+            {computedIsCacheMismatch && (
                 <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl space-y-2">
                     <div className="flex items-start gap-3">
                         <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
@@ -147,7 +154,7 @@ export function SettingInfo() {
             )}
 
             {/* 有新版本可更新 */}
-            {hasNewVersion && (
+            {computedHasNewVersion && (
                 <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl space-y-2">
                     <div className="flex items-start gap-3">
                         <Download className="h-5 w-5 text-primary shrink-0 mt-0.5" />
@@ -176,4 +183,3 @@ export function SettingInfo() {
         </div>
     );
 }
-

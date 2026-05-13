@@ -10,17 +10,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/bestruirui/octopus/internal/client"
 	"github.com/bestruirui/octopus/internal/conf"
 	"github.com/bestruirui/octopus/internal/utils/log"
-)
-
-const (
-	updateUrl    = "https://github.com/Hureru/octopus/releases/latest/download"
-	updateApiUrl = "https://api.github.com/repos/Hureru/octopus/releases/latest"
 )
 
 type LatestInfo struct {
@@ -31,6 +27,20 @@ type LatestInfo struct {
 }
 
 var github_pat = os.Getenv(strings.ToUpper(conf.APP_NAME) + "_GITHUB_PAT")
+var githubRepoPattern = regexp.MustCompile(`^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$`)
+
+func githubReleaseURLs() (string, string, error) {
+	repo := strings.TrimSpace(conf.Repo)
+	matches := githubRepoPattern.FindStringSubmatch(repo)
+	if len(matches) != 3 {
+		return "", "", fmt.Errorf("unsupported github repo url: %s", repo)
+	}
+	owner := matches[1]
+	name := matches[2]
+	updateURL := fmt.Sprintf("https://github.com/%s/%s/releases/latest/download", owner, name)
+	updateAPIURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, name)
+	return updateURL, updateAPIURL, nil
+}
 
 // doRequestWithFallback performs an HTTP GET request, first without proxy, then with proxy if failed.
 func doRequestWithFallback(url string) ([]byte, error) {
@@ -77,7 +87,12 @@ func doRequest(url string, useProxy bool) ([]byte, error) {
 }
 
 func GetLatestInfo() (*LatestInfo, error) {
-	body, err := doRequestWithFallback(updateApiUrl)
+	_, updateAPIURL, err := githubReleaseURLs()
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := doRequestWithFallback(updateAPIURL)
 	if err != nil {
 		return nil, err
 	}

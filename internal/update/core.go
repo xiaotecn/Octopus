@@ -21,7 +21,13 @@ func UpdateCore() error {
 		return err
 	}
 
-	downloadUrl := updateUrl + "/" + filename
+	updateURL, _, err := githubReleaseURLs()
+	if err != nil {
+		log.Warnf("resolve release url failed: %v", err)
+		return err
+	}
+
+	downloadUrl := updateURL + "/" + filename
 	log.Infof("download url: %s", downloadUrl)
 	data, err := doRequestWithFallback(downloadUrl)
 	if err != nil {
