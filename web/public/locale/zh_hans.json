@@ -252,6 +252,8 @@
                 "actions": {
                     "show": "显示完整密钥",
                     "hide": "隐藏完整密钥",
+                    "expand": "展开卡片",
+                    "collapse": "收起卡片",
                     "stats": "查看统计",
                     "edit": "编辑密钥",
                     "delete": "删除密钥"

@@ -214,39 +214,41 @@ export function AppContainer() {
             <NavBar />
             <main className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
                 <header className="my-6 flex flex-none items-center gap-x-2">
-                    <BrandLogo size={48} />
-                    <div className="flex-1 overflow-hidden">
-                        <div className="truncate text-sm font-semibold text-muted-foreground">
-                            {branding.siteTitle}
+                    <div className="flex min-w-0 flex-1 items-center gap-x-2 md:-ml-6">
+                        <BrandLogo size={48} />
+                        <div className="flex-1 overflow-hidden">
+                            <div className="truncate text-sm font-semibold text-muted-foreground">
+                                {branding.siteTitle}
+                            </div>
+                            <AnimatePresence mode="wait" custom={direction}>
+                                <motion.div
+                                    key={activeItem}
+                                    custom={direction}
+                                    variants={{
+                                        initial: (direction: number) => ({
+                                            y: 32 * direction,
+                                            opacity: 0
+                                        }),
+                                        animate: {
+                                            y: 0,
+                                            opacity: 1
+                                        },
+                                        exit: (direction: number) => ({
+                                            y: -32 * direction,
+                                            opacity: 0
+                                        })
+                                    }}
+                                    initial="initial"
+                                    animate="animate"
+                                    exit="exit"
+                                    transition={{ duration: 0.3 }}
+                                    className="flex items-baseline gap-6"
+                                >
+                                    <span className="text-3xl font-bold mt-1">{t(activeItem)}</span>
+                                    {activeItem === 'channel' && <ChannelTabSwitcher />}
+                                </motion.div>
+                            </AnimatePresence>
                         </div>
-                        <AnimatePresence mode="wait" custom={direction}>
-                            <motion.div
-                                key={activeItem}
-                                custom={direction}
-                                variants={{
-                                    initial: (direction: number) => ({
-                                        y: 32 * direction,
-                                        opacity: 0
-                                    }),
-                                    animate: {
-                                        y: 0,
-                                        opacity: 1
-                                    },
-                                    exit: (direction: number) => ({
-                                        y: -32 * direction,
-                                        opacity: 0
-                                    })
-                                }}
-                                initial="initial"
-                                animate="animate"
-                                exit="exit"
-                                transition={{ duration: 0.3 }}
-                                className="flex items-baseline gap-6"
-                            >
-                                <span className="text-3xl font-bold mt-1">{t(activeItem)}</span>
-                                {activeItem === 'channel' && <ChannelTabSwitcher />}
-                            </motion.div>
-                        </AnimatePresence>
                     </div>
                     <div className="ml-auto flex items-center gap-3">
                         {activeItem === 'channel' && <ChannelHeaderActions />}

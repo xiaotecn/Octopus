@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { KeyRound, Plus, Loader, Trash2, Check, X, Info, CalendarDays, Pencil, Maximize2, Eye, EyeOff, Sparkles, WalletCards, Gauge, ShieldCheck } from 'lucide-react';
+import { KeyRound, Plus, Loader, Trash2, Check, X, Info, CalendarDays, Pencil, Maximize2, Eye, EyeOff, Sparkles, WalletCards, Gauge, ShieldCheck, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageWrapper } from '@/components/common/PageWrapper';
 import { Input } from '@/components/ui/input';
@@ -501,14 +501,15 @@ function APIKeyKeyItem({
     onEdit: () => void;
     onDelete: () => void;
     isDeleting: boolean;
-}) {
-    const t = useTranslations('setting');
-    const [confirmDelete, setConfirmDelete] = useState(false);
-    const [showSecret, setShowSecret] = useState(false);
-    const authorizedModels = useMemo(
-        () => apiKey.supported_models?.split(',').map((item) => item.trim()).filter(Boolean) ?? [],
-        [apiKey.supported_models]
-    );
+  }) {
+      const t = useTranslations('setting');
+      const [confirmDelete, setConfirmDelete] = useState(false);
+      const [showSecret, setShowSecret] = useState(false);
+      const [expanded, setExpanded] = useState(false);
+      const authorizedModels = useMemo(
+          () => apiKey.supported_models?.split(',').map((item) => item.trim()).filter(Boolean) ?? [],
+          [apiKey.supported_models]
+      );
     const tokenUsage = stats?.total_token.formatted;
     const totalCostRaw = stats?.total_cost.raw ?? 0;
     const totalCostFormatted = stats?.total_cost.formatted;
@@ -517,13 +518,17 @@ function APIKeyKeyItem({
     const quotaProgress = hasQuotaLimit && apiKey.max_cost! > 0
         ? Math.min(100, (totalCostRaw / apiKey.max_cost!) * 100)
         : 0;
-    const expireAtLabel = apiKey.expire_at
-        ? formatDateTime(apiKey.expire_at)
-        : t('apiKey.card.neverExpire');
-    const statusLabel = apiKey.enabled ? t('apiKey.card.enabled') : t('apiKey.card.disabled');
-    const keyValue = showSecret ? apiKey.api_key : maskAPIKey(apiKey.api_key);
+      const expireAtLabel = apiKey.expire_at
+          ? formatDateTime(apiKey.expire_at)
+          : t('apiKey.card.neverExpire');
+      const statusLabel = apiKey.enabled ? t('apiKey.card.enabled') : t('apiKey.card.disabled');
+      const keyValue = showSecret ? apiKey.api_key : maskAPIKey(apiKey.api_key);
+      const summaryModels = authorizedModels.length === 0
+          ? t('apiKey.card.allModels')
+          : authorizedModels.slice(0, 2).join(', ');
+      const summaryUsage = tokenUsage ? `${tokenUsage.value}${tokenUsage.unit}` : t('apiKey.card.noUsage');
 
-    return (
+      return (
         <motion.div
             layout
             initial={{ opacity: 0, scale: 0.95 }}
@@ -533,11 +538,11 @@ function APIKeyKeyItem({
             className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/30 p-4 origin-top shadow-sm transition-colors hover:border-primary/25"
         >
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-            <div className="flex flex-col gap-4">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-2">
-                        <div className="flex items-center gap-2">
-                            <span className="truncate text-base font-semibold text-card-foreground">{apiKey.name}</span>
+              <div className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-2">
+                          <div className="flex items-center gap-2">
+                              <span className="truncate text-base font-semibold text-card-foreground">{apiKey.name}</span>
                             <Badge variant={apiKey.enabled ? 'default' : 'outline'} className="rounded-full px-2 py-0.5 text-[10px]">
                                 {statusLabel}
                             </Badge>
@@ -549,10 +554,18 @@ function APIKeyKeyItem({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                        <motion.button
-                            type="button"
-                            layoutId={statsLayoutId}
+                      <div className="flex items-center gap-1.5">
+                          <button
+                              type="button"
+                              onClick={() => setExpanded((current) => !current)}
+                              className="flex size-8 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+                              title={expanded ? t('apiKey.card.actions.collapse') : t('apiKey.card.actions.expand')}
+                          >
+                              <ChevronDown className={cn('size-4 transition-transform', expanded ? 'rotate-180' : '')} />
+                          </button>
+                          <motion.button
+                              type="button"
+                              layoutId={statsLayoutId}
                             onClick={onViewStats}
                             className="flex size-8 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
                             title={t('apiKey.card.actions.stats')}
@@ -582,109 +595,140 @@ function APIKeyKeyItem({
                     </div>
                 </div>
 
-                <div className="rounded-2xl border border-border/60 bg-background/70 p-3">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                            <ShieldCheck className="size-3.5" />
-                            {t('apiKey.card.secret')}
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setShowSecret((current) => !current)}
-                                className="flex size-8 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                title={showSecret ? t('apiKey.card.actions.hide') : t('apiKey.card.actions.show')}
-                            >
-                                {showSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                            </button>
-                            <CopyIconButton
-                                text={apiKey.api_key}
-                                className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95"
-                                copyIconClassName="size-4"
-                                checkIconClassName="size-4"
-                            />
-                        </div>
-                    </div>
-                    <div className="truncate rounded-xl bg-muted/40 px-3 py-2 font-mono text-sm text-card-foreground">
-                        {keyValue}
-                    </div>
-                </div>
+                  <div className="grid gap-2 md:grid-cols-3">
+                      <div className="rounded-xl bg-background/60 px-3 py-2">
+                          <div className="text-[11px] text-muted-foreground">{t('apiKey.card.authorizedModels')}</div>
+                          <div className="truncate text-sm font-medium text-card-foreground">{summaryModels}</div>
+                      </div>
+                      <div className="rounded-xl bg-background/60 px-3 py-2">
+                          <div className="text-[11px] text-muted-foreground">{t('apiKey.card.quota')}</div>
+                          <div className="truncate text-sm font-medium text-card-foreground">
+                              {hasQuotaLimit ? `$${remainingQuota?.toFixed(2)}` : t('apiKey.card.unlimitedQuota')}
+                          </div>
+                      </div>
+                      <div className="rounded-xl bg-background/60 px-3 py-2">
+                          <div className="text-[11px] text-muted-foreground">{t('apiKey.card.totalTokens')}</div>
+                          <div className="truncate text-sm font-medium text-card-foreground">{summaryUsage}</div>
+                      </div>
+                  </div>
 
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                    <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                            <Sparkles className="size-3.5" />
-                            {t('apiKey.card.authorizedModels')}
-                        </div>
-                        {authorizedModels.length === 0 ? (
-                            <div className="text-sm text-muted-foreground">{t('apiKey.card.allModels')}</div>
-                        ) : (
-                            <div className="flex flex-wrap gap-2">
-                                {authorizedModels.slice(0, 6).map((model) => (
-                                    <Badge key={model} variant="outline" className="rounded-full bg-background/70 px-2.5 py-1 text-xs">
-                                        {model}
-                                    </Badge>
-                                ))}
-                                {authorizedModels.length > 6 && (
-                                    <Badge variant="outline" className="rounded-full bg-background/70 px-2.5 py-1 text-xs">
-                                        {t('apiKey.card.moreModels', { count: authorizedModels.length - 6 })}
-                                    </Badge>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                  <AnimatePresence initial={false}>
+                      {expanded && (
+                          <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                          >
+                              <div className="mt-1 flex flex-col gap-3">
+                                  <div className="rounded-2xl border border-border/60 bg-background/70 p-3">
+                                      <div className="mb-2 flex items-center justify-between gap-2">
+                                          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                              <ShieldCheck className="size-3.5" />
+                                              {t('apiKey.card.secret')}
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                              <button
+                                                  type="button"
+                                                  onClick={() => setShowSecret((current) => !current)}
+                                                  className="flex size-8 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                                  title={showSecret ? t('apiKey.card.actions.hide') : t('apiKey.card.actions.show')}
+                                              >
+                                                  {showSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                                              </button>
+                                              <CopyIconButton
+                                                  text={apiKey.api_key}
+                                                  className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95"
+                                                  copyIconClassName="size-4"
+                                                  checkIconClassName="size-4"
+                                              />
+                                          </div>
+                                      </div>
+                                      <div className="truncate rounded-xl bg-muted/40 px-3 py-2 font-mono text-sm text-card-foreground">
+                                          {keyValue}
+                                      </div>
+                                  </div>
 
-                    <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
-                        <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                            <Gauge className="size-3.5" />
-                            {t('apiKey.card.usage')}
-                        </div>
-                        <div className="grid gap-3">
-                            <div className="rounded-xl bg-muted/40 p-3">
-                                <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                                    <WalletCards className="size-3.5" />
-                                    {t('apiKey.card.quota')}
-                                </div>
-                                {hasQuotaLimit ? (
-                                    <>
-                                        <div className="text-sm font-semibold text-card-foreground">
-                                            ${remainingQuota?.toFixed(2)} / ${apiKey.max_cost?.toFixed(2)}
-                                        </div>
-                                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                                            <div
-                                                className={cn(
-                                                    'h-full rounded-full transition-all',
-                                                    quotaProgress >= 90 ? 'bg-destructive' : 'bg-primary'
-                                                )}
-                                                style={{ width: `${quotaProgress}%` }}
-                                            />
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="text-sm font-semibold text-card-foreground">
-                                        {t('apiKey.card.unlimitedQuota')}
-                                    </div>
-                                )}
-                            </div>
+                                  <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                                      <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
+                                          <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                              <Sparkles className="size-3.5" />
+                                              {t('apiKey.card.authorizedModels')}
+                                          </div>
+                                          {authorizedModels.length === 0 ? (
+                                              <div className="text-sm text-muted-foreground">{t('apiKey.card.allModels')}</div>
+                                          ) : (
+                                              <div className="flex flex-wrap gap-2">
+                                                  {authorizedModels.slice(0, 6).map((model) => (
+                                                      <Badge key={model} variant="outline" className="rounded-full bg-background/70 px-2.5 py-1 text-xs">
+                                                          {model}
+                                                      </Badge>
+                                                  ))}
+                                                  {authorizedModels.length > 6 && (
+                                                      <Badge variant="outline" className="rounded-full bg-background/70 px-2.5 py-1 text-xs">
+                                                          {t('apiKey.card.moreModels', { count: authorizedModels.length - 6 })}
+                                                      </Badge>
+                                                  )}
+                                              </div>
+                                          )}
+                                      </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="rounded-xl bg-muted/40 p-3">
-                                    <div className="text-xs text-muted-foreground">{t('apiKey.card.totalTokens')}</div>
-                                    <div className="mt-1 text-sm font-semibold text-card-foreground">
-                                        {tokenUsage ? `${tokenUsage.value}${tokenUsage.unit}` : t('apiKey.card.noUsage')}
-                                    </div>
-                                </div>
-                                <div className="rounded-xl bg-muted/40 p-3">
-                                    <div className="text-xs text-muted-foreground">{t('apiKey.card.totalCost')}</div>
-                                    <div className="mt-1 text-sm font-semibold text-card-foreground">
-                                        {totalCostFormatted ? `${totalCostFormatted.value}${totalCostFormatted.unit}` : '$0.00'}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                                      <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
+                                          <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                              <Gauge className="size-3.5" />
+                                              {t('apiKey.card.usage')}
+                                          </div>
+                                          <div className="grid gap-3">
+                                              <div className="rounded-xl bg-muted/40 p-3">
+                                                  <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                                      <WalletCards className="size-3.5" />
+                                                      {t('apiKey.card.quota')}
+                                                  </div>
+                                                  {hasQuotaLimit ? (
+                                                      <>
+                                                          <div className="text-sm font-semibold text-card-foreground">
+                                                              ${remainingQuota?.toFixed(2)} / ${apiKey.max_cost?.toFixed(2)}
+                                                          </div>
+                                                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                                                              <div
+                                                                  className={cn(
+                                                                      'h-full rounded-full transition-all',
+                                                                      quotaProgress >= 90 ? 'bg-destructive' : 'bg-primary'
+                                                                  )}
+                                                                  style={{ width: `${quotaProgress}%` }}
+                                                              />
+                                                          </div>
+                                                      </>
+                                                  ) : (
+                                                      <div className="text-sm font-semibold text-card-foreground">
+                                                          {t('apiKey.card.unlimitedQuota')}
+                                                      </div>
+                                                  )}
+                                              </div>
+
+                                              <div className="grid grid-cols-2 gap-3">
+                                                  <div className="rounded-xl bg-muted/40 p-3">
+                                                      <div className="text-xs text-muted-foreground">{t('apiKey.card.totalTokens')}</div>
+                                                      <div className="mt-1 text-sm font-semibold text-card-foreground">
+                                                          {tokenUsage ? `${tokenUsage.value}${tokenUsage.unit}` : t('apiKey.card.noUsage')}
+                                                      </div>
+                                                  </div>
+                                                  <div className="rounded-xl bg-muted/40 p-3">
+                                                      <div className="text-xs text-muted-foreground">{t('apiKey.card.totalCost')}</div>
+                                                      <div className="mt-1 text-sm font-semibold text-card-foreground">
+                                                          {totalCostFormatted ? `${totalCostFormatted.value}${totalCostFormatted.unit}` : '$0.00'}
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </motion.div>
+                      )}
+                  </AnimatePresence>
+              </div>
 
             <AnimatePresence>
                 {confirmDelete && (

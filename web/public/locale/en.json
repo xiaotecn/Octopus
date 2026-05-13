@@ -252,6 +252,8 @@
                 "actions": {
                     "show": "Show full key",
                     "hide": "Hide full key",
+                    "expand": "Expand card",
+                    "collapse": "Collapse card",
                     "stats": "View stats",
                     "edit": "Edit key",
                     "delete": "Delete key"

@@ -1,4 +1,5 @@
 import "./globals.css";
+import Script from "next/script";
 import { ThemeProvider } from "@/provider/theme";
 import { Toaster } from "@/components/ui/sonner"
 import { LocaleProvider } from "@/provider/locale";
@@ -68,7 +69,11 @@ export default function RootLayout({
         <link rel="icon" href={DEFAULT_FAVICON_PATH} sizes="any" />
         <link rel="apple-touch-icon" href={DEFAULT_APPLE_ICON_PATH} />
         <title>{DEFAULT_SITE_TITLE}</title>
-        <script dangerouslySetInnerHTML={{ __html: brandingBootstrapScript }} />
+        <Script
+          id="branding-bootstrap"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: brandingBootstrapScript }}
+        />
         <style
           dangerouslySetInnerHTML={{
             __html: `

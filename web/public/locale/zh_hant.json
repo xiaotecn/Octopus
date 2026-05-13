@@ -252,6 +252,8 @@
                 "actions": {
                     "show": "顯示完整金鑰",
                     "hide": "隱藏完整金鑰",
+                    "expand": "展開卡片",
+                    "collapse": "收起卡片",
                     "stats": "查看統計",
                     "edit": "編輯金鑰",
                     "delete": "刪除金鑰"
