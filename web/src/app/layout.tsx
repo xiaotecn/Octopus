@@ -5,6 +5,7 @@ import { LocaleProvider } from "@/provider/locale";
 import QueryProvider from "@/provider/query";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { TooltipProvider } from "@/components/animate-ui/components/animate/tooltip";
+import { BrandingSync } from "@/components/branding-sync";
 
 
 
@@ -108,6 +109,7 @@ export default function RootLayout({
         <ServiceWorkerRegister />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <QueryProvider>
+            <BrandingSync />
             <LocaleProvider>
               <TooltipProvider>
                 {children}

@@ -10,6 +10,7 @@ import { ContentLoader } from '@/route/content-loader';
 import { NavBar, useNavStore } from '@/components/modules/navbar';
 import { useTranslations } from 'next-intl'
 import Logo, { LOGO_DRAW_END_MS } from '@/components/modules/logo';
+import BrandLogo from '@/components/modules/logo/brand-logo';
 import { Toolbar } from '@/components/modules/toolbar';
 import { ChannelTabSwitcher, ChannelHeaderActions } from '@/components/modules/channel/TabSwitcher';
 import { ENTRANCE_VARIANTS } from '@/lib/animations/fluid-transitions';
@@ -17,12 +18,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CONTENT_MAP } from '@/route';
 import { apiClient } from '@/api/client';
 import { logger } from '@/lib/logger';
+import { useBranding } from '@/api/endpoints/setting';
+import { buildBranding } from '@/lib/branding';
 
 const RETURNING_USER_KEY = 'octopus_visited';
 const RETURNING_LOGO_MS = 300;
 
 export function AppContainer() {
     const { isAuthenticated, isAPIKeyAuth, isLoading: authLoading } = useAuth();
+    const { data: brandingData } = useBranding();
+    const branding = buildBranding(brandingData);
     const { activeItem, direction } = useNavStore();
     const t = useTranslations('navbar');
     const queryClient = useQueryClient();
@@ -209,8 +214,11 @@ export function AppContainer() {
             <NavBar />
             <main className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
                 <header className="my-6 flex flex-none items-center gap-x-2 px-2">
-                    <Logo size={48} />
+                    <BrandLogo size={48} />
                     <div className="flex-1 overflow-hidden">
+                        <div className="truncate text-sm font-semibold text-muted-foreground">
+                            {branding.siteTitle}
+                        </div>
                         <AnimatePresence mode="wait" custom={direction}>
                             <motion.div
                                 key={activeItem}
@@ -265,4 +273,3 @@ export function AppContainer() {
         </motion.div>
     );
 }
-

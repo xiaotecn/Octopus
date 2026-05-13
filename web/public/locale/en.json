@@ -144,6 +144,23 @@
             "zh_hant": "Chinese (Traditional)",
             "en": "English"
         },
+        "branding": {
+            "title": {
+                "label": "Site Title",
+                "placeholder": "Enter site title",
+                "hint": "Shown in the page header and browser title."
+            },
+            "logo": {
+                "label": "Global Logo",
+                "hint": "Supports PNG, JPG, SVG, WEBP, ICO. Keep it under 512 KB.",
+                "upload": "Upload Logo",
+                "clear": "Clear",
+                "previewHint": "The uploaded image will be used for the login page, top bar, and site icon.",
+                "invalidType": "Please upload an image file.",
+                "tooLarge": "Logo file must be 512 KB or smaller.",
+                "readFailed": "Failed to read logo file."
+            }
+        },
         "proxyUrl": {
             "label": "Proxy URL",
             "placeholder": "Enter proxy URL"

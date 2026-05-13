@@ -6,8 +6,9 @@ import { toast } from '@/components/common/Toast';
 import { useAPIKeyDashboardStats } from '@/api/endpoints/apikey';
 import { useAuthStore } from '@/api/endpoints/user';
 import { useSettingStore } from '@/stores/setting';
+import { useBranding } from '@/api/endpoints/setting';
 import { AnimatedNumber } from '@/components/common/AnimatedNumber';
-import Logo from '@/components/modules/logo';
+import BrandLogo from '@/components/modules/logo/brand-logo';
 import { PageWrapper } from '@/components/common/PageWrapper';
 import { CopyIconButton } from '@/components/common/CopyButton';
 import { useCopyToClipboard } from '@uidotdev/usehooks';
@@ -33,10 +34,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import dayjs from 'dayjs';
+import { buildBranding } from '@/lib/branding';
 
 export function APIKeyDashboard() {
     const t = useTranslations('apiKeyDashboard');
     const { data, error } = useAPIKeyDashboardStats();
+    const { data: brandingData } = useBranding();
+    const branding = buildBranding(brandingData);
     const { logout } = useAuthStore();
     const { theme, setTheme } = useTheme();
     const { locale, setLocale } = useSettingStore();
@@ -110,8 +114,8 @@ export function APIKeyDashboard() {
         <div className="mx-auto max-w-6xl px-3 md:px-6">
             {/* Header - Consistent with app.tsx */}
             <header className="my-6 flex items-center gap-2 px-2">
-                <Logo size={48} />
-                <h1 className="ml-2 flex-1 truncate text-2xl font-bold tracking-tight">octopus</h1>
+                <BrandLogo size={48} />
+                <h1 className="ml-2 flex-1 truncate text-2xl font-bold tracking-tight">{branding.siteTitle}</h1>
                 <div className="flex items-center gap-2">
                     <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-xl hover:bg-accent">
                         <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />

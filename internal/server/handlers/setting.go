@@ -20,6 +20,12 @@ import (
 
 func init() {
 	router.NewGroupRouter("/api/v1/setting").
+		AddRoute(
+			router.NewRoute("/branding", http.MethodGet).
+				Handle(getBranding),
+		)
+
+	router.NewGroupRouter("/api/v1/setting").
 		Use(middleware.Auth()).
 		AddRoute(
 			router.NewRoute("/list", http.MethodGet).
@@ -40,6 +46,11 @@ func init() {
 		)
 }
 
+type brandingResponse struct {
+	SiteTitle       string `json:"site_title"`
+	SiteLogoDataURL string `json:"site_logo_data_url"`
+}
+
 func getSettingList(c *gin.Context) {
 	settings, err := op.SettingList(c.Request.Context())
 	if err != nil {
@@ -47,6 +58,25 @@ func getSettingList(c *gin.Context) {
 		return
 	}
 	resp.Success(c, settings)
+}
+
+func getBranding(c *gin.Context) {
+	siteTitle, err := op.SettingGetString(model.SettingKeySiteTitle)
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	siteLogoDataURL, err := op.SettingGetString(model.SettingKeySiteLogoDataURL)
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp.Success(c, brandingResponse{
+		SiteTitle:       siteTitle,
+		SiteLogoDataURL: siteLogoDataURL,
+	})
 }
 
 func setSetting(c *gin.Context) {

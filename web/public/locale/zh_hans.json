@@ -144,6 +144,23 @@
             "zh_hant": "繁体中文",
             "en": "English"
         },
+        "branding": {
+            "title": {
+                "label": "网站标题",
+                "placeholder": "请输入网站标题",
+                "hint": "会显示在页面顶部和浏览器标题。"
+            },
+            "logo": {
+                "label": "全站 Logo",
+                "hint": "支持 PNG、JPG、SVG、WEBP、ICO，建议小于 512 KB。",
+                "upload": "上传 Logo",
+                "clear": "清除",
+                "previewHint": "上传后会同步用于登录页、顶部栏和网站图标。",
+                "invalidType": "请上传图片文件。",
+                "tooLarge": "Logo 文件不能超过 512 KB。",
+                "readFailed": "读取 Logo 文件失败。"
+            }
+        },
         "proxyUrl": {
             "label": "代理地址",
             "placeholder": "请输入代理地址"

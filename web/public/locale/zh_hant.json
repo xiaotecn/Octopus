@@ -144,6 +144,23 @@
             "zh_hant": "繁體中文",
             "en": "English"
         },
+        "branding": {
+            "title": {
+                "label": "網站標題",
+                "placeholder": "請輸入網站標題",
+                "hint": "會顯示在頁面頂部和瀏覽器標題。"
+            },
+            "logo": {
+                "label": "全站 Logo",
+                "hint": "支援 PNG、JPG、SVG、WEBP、ICO，建議小於 512 KB。",
+                "upload": "上傳 Logo",
+                "clear": "清除",
+                "previewHint": "上傳後會同步用於登入頁、頂部欄和網站圖示。",
+                "invalidType": "請上傳圖片檔案。",
+                "tooLarge": "Logo 檔案不能超過 512 KB。",
+                "readFailed": "讀取 Logo 檔案失敗。"
+            }
+        },
         "proxyUrl": {
             "label": "代理位址",
             "placeholder": "請輸入代理位址"

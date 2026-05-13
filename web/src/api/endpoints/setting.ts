@@ -11,8 +11,15 @@ export interface Setting {
     value: string;
 }
 
+export interface Branding {
+    site_title: string;
+    site_logo_data_url: string;
+}
+
 export const SettingKey = {
     ProxyURL: 'proxy_url',
+    SiteTitle: 'site_title',
+    SiteLogoDataURL: 'site_logo_data_url',
     StatsSaveInterval: 'stats_save_interval',
     ModelInfoUpdateInterval: 'model_info_update_interval',
     SyncLLMInterval: 'sync_llm_interval',
@@ -50,6 +57,16 @@ export function useSettingList() {
     });
 }
 
+export function useBranding() {
+    return useQuery({
+        queryKey: ['branding'],
+        queryFn: async () => {
+            return apiClient.get<Branding>('/api/v1/setting/branding');
+        },
+        refetchInterval: 30000,
+    });
+}
+
 /**
  * 设置 Setting Hook
  * 
@@ -71,6 +88,7 @@ export function useSetSetting() {
         onSuccess: (data) => {
             logger.log('Setting 设置成功:', data);
             queryClient.invalidateQueries({ queryKey: ['settings', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['branding'] });
         },
         onError: (error) => {
             logger.error('Setting 设置失败:', error);
@@ -213,5 +231,3 @@ export function useImportDB() {
         },
     });
 }
-
-
