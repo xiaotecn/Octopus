@@ -365,7 +365,7 @@ function createAccountForm(
   return {
     site_id: account.site_id,
     name: account.name,
-    credential_type,
+    credential_type: credentialType,
     username: account.username,
     password: account.password,
     access_token: account.access_token,
