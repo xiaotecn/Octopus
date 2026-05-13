@@ -1,0 +1,41 @@
+FROM node:22-bookworm-slim AS web-builder
+
+WORKDIR /src/web
+
+RUN corepack enable
+
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY web/ ./
+RUN pnpm build
+
+FROM golang:1.25.0-bookworm AS go-builder
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . ./
+COPY --from=web-builder /src/web/out ./static/out
+
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/octopus ./main.go
+
+FROM debian:bookworm-slim
+
+ENV TZ=Asia/Shanghai
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y ca-certificates tzdata && \
+    ln -fs /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=go-builder /out/octopus /app/octopus
+
+RUN mkdir -p /app/data
+
+EXPOSE 8080
+
+CMD ["/app/octopus", "start"]

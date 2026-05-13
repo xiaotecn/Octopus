@@ -40,9 +40,12 @@ docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 bestrui/oct
 或者使用 docker compose 运行
 
 ```bash
-wget https://raw.githubusercontent.com/Hureru/octopus/refs/heads/dev/docker-compose.yml
-docker compose up -d
+git clone https://github.com/Hureru/octopus.git
+cd octopus
+docker compose up -d --build
 ```
+
+> `docker-compose.yml` 会基于当前仓库源码构建镜像，并把运行数据持久化到 `./data`。
 
 
 ### 📦 从 Release 下载

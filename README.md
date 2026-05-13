@@ -40,9 +40,12 @@ docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 bestrui/oct
 Or use docker compose:
 
 ```bash
-wget https://raw.githubusercontent.com/Hureru/octopus/refs/heads/dev/docker-compose.yml
-docker compose up -d
+git clone https://github.com/Hureru/octopus.git
+cd octopus
+docker compose up -d --build
 ```
+
+> The compose file builds the current source code and persists runtime data in `./data`.
 
 
 ### 📦 Download from Release
@@ -409,4 +412,3 @@ Compatible with [bestruirui/octopus](https://github.com/bestruirui/octopus), ~18
 ## 🔗 Friend Links
 
 - 🐧 [LinuxDO](https://linux.do) - A community for tech enthusiasts
-

@@ -1,0 +1,12 @@
+.git
+.github
+.workflow
+.vscode
+.claude
+.codex
+.gocache
+data
+build
+web/node_modules
+web/.next
+static/out
