@@ -233,6 +233,30 @@
             "empty": "暂无 API 密钥",
             "add": "添加密钥",
             "loadFailed": "加载失败",
+            "card": {
+                "id": "ID #{id}",
+                "enabled": "已启用",
+                "disabled": "已停用",
+                "secret": "密钥信息",
+                "authorizedModels": "授权模型",
+                "allModels": "全部模型可用",
+                "moreModels": "+{count} 个",
+                "usage": "使用情况",
+                "quota": "当前额度",
+                "unlimitedQuota": "无限额度",
+                "totalTokens": "已用 Token",
+                "totalCost": "已用费用",
+                "noUsage": "暂无使用",
+                "expireAt": "过期时间",
+                "neverExpire": "永不过期",
+                "actions": {
+                    "show": "显示完整密钥",
+                    "hide": "隐藏完整密钥",
+                    "stats": "查看统计",
+                    "edit": "编辑密钥",
+                    "delete": "删除密钥"
+                }
+            },
             "form": {
                 "name": "名称",
                 "maxCost": "最大金额",

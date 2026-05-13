@@ -9,6 +9,14 @@ import { useHomeViewStore, type RankSortMode } from '@/components/modules/home/s
 
 type ChannelData = NonNullable<ReturnType<typeof useChannelList>['data']>[number];
 
+function getRankDisplayName(name: string): string {
+    const trimmed = name.trim();
+    if (!trimmed) return name;
+
+    const siteName = trimmed.split('/')[0]?.trim();
+    return siteName || trimmed;
+}
+
 export function Rank() {
     const { data: channelData } = useChannelList();
     const t = useTranslations('home.rank');
@@ -53,6 +61,7 @@ export function Rank() {
                 {channels.map((channel, index) => {
                     const rank = index + 1;
                     const medal = getMedalEmoji(rank);
+                    const displayName = getRankDisplayName(channel.raw.name);
 
                     return (
                         <div
@@ -64,7 +73,7 @@ export function Rank() {
                             </div>
 
                             <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm truncate">{channel.raw.name}</p>
+                                <p className="font-medium text-sm truncate">{displayName}</p>
                                 {mode === 'count' && (() => {
                                     const successCount = channel.formatted.request_success.raw;
                                     const failedCount = channel.formatted.request_failed.raw;

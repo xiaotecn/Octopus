@@ -233,6 +233,30 @@
             "empty": "No API keys",
             "add": "Add Key",
             "loadFailed": "Failed to load",
+            "card": {
+                "id": "ID #{id}",
+                "enabled": "Enabled",
+                "disabled": "Disabled",
+                "secret": "Key Secret",
+                "authorizedModels": "Authorized Models",
+                "allModels": "All models available",
+                "moreModels": "+{count} more",
+                "usage": "Usage",
+                "quota": "Current Quota",
+                "unlimitedQuota": "Unlimited quota",
+                "totalTokens": "Tokens Used",
+                "totalCost": "Cost Used",
+                "noUsage": "No usage yet",
+                "expireAt": "Expires",
+                "neverExpire": "Never",
+                "actions": {
+                    "show": "Show full key",
+                    "hide": "Hide full key",
+                    "stats": "View stats",
+                    "edit": "Edit key",
+                    "delete": "Delete key"
+                }
+            },
             "form": {
                 "name": "Name",
                 "maxCost": "Max Cost",

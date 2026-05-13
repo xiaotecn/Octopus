@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { KeyRound, Plus, Loader, Trash2, Check, X, Info, CalendarDays, Pencil, Maximize2 } from 'lucide-react';
+import { KeyRound, Plus, Loader, Trash2, Check, X, Info, CalendarDays, Pencil, Maximize2, Eye, EyeOff, Sparkles, WalletCards, Gauge, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageWrapper } from '@/components/common/PageWrapper';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/components/common/Toast';
 import { CopyIconButton } from '@/components/common/CopyButton';
 import type { ApiError } from '@/api/types';
+import type { StatsAPIKeyFormatted } from '@/api/endpoints/stats';
 
 function toExpireAt(date: Date, time: string): number {
     const t = /^\d{2}:\d{2}$/.test(time) ? time : '00:00';
@@ -70,6 +71,25 @@ function toggleModel(current: string | undefined, model: string): string | undef
 
 function hasModel(supported: string | undefined, model: string): boolean {
     return supported ? supported.split(',').includes(model) : false;
+}
+
+function maskAPIKey(value: string): string {
+    if (!value) return '';
+    if (value.length <= 12) return `${value.slice(0, 4)}****${value.slice(-2)}`;
+    return `${value.slice(0, 6)}******${value.slice(-6)}`;
+}
+
+function formatDateTime(value?: number): string {
+    if (!value) return '';
+    const date = new Date(value * 1000);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 }
 
 interface APIKeyFormProps {
@@ -463,6 +483,7 @@ function APIKeyStatsCard({
 
 function APIKeyKeyItem({
     apiKey,
+    stats,
     statsLayoutId,
     editLayoutId,
     deleteLayoutId,
@@ -472,6 +493,7 @@ function APIKeyKeyItem({
     isDeleting,
 }: {
     apiKey: APIKey;
+    stats?: StatsAPIKeyFormatted;
     statsLayoutId: string;
     editLayoutId: string;
     deleteLayoutId: string;
@@ -482,6 +504,24 @@ function APIKeyKeyItem({
 }) {
     const t = useTranslations('setting');
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [showSecret, setShowSecret] = useState(false);
+    const authorizedModels = useMemo(
+        () => apiKey.supported_models?.split(',').map((item) => item.trim()).filter(Boolean) ?? [],
+        [apiKey.supported_models]
+    );
+    const tokenUsage = stats?.total_token.formatted;
+    const totalCostRaw = stats?.total_cost.raw ?? 0;
+    const totalCostFormatted = stats?.total_cost.formatted;
+    const hasQuotaLimit = typeof apiKey.max_cost === 'number' && Number.isFinite(apiKey.max_cost);
+    const remainingQuota = hasQuotaLimit ? Math.max(0, apiKey.max_cost! - totalCostRaw) : undefined;
+    const quotaProgress = hasQuotaLimit && apiKey.max_cost! > 0
+        ? Math.min(100, (totalCostRaw / apiKey.max_cost!) * 100)
+        : 0;
+    const expireAtLabel = apiKey.expire_at
+        ? formatDateTime(apiKey.expire_at)
+        : t('apiKey.card.neverExpire');
+    const statusLabel = apiKey.enabled ? t('apiKey.card.enabled') : t('apiKey.card.disabled');
+    const keyValue = showSecret ? apiKey.api_key : maskAPIKey(apiKey.api_key);
 
     return (
         <motion.div
@@ -490,52 +530,167 @@ function APIKeyKeyItem({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            className="group relative flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/50 overflow-hidden origin-top"
+            className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/30 p-4 origin-top shadow-sm transition-colors hover:border-primary/25"
         >
-            <span className="text-sm font-medium truncate">{apiKey.name}</span>
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+            <div className="flex flex-col gap-4">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-2">
+                        <div className="flex items-center gap-2">
+                            <span className="truncate text-base font-semibold text-card-foreground">{apiKey.name}</span>
+                            <Badge variant={apiKey.enabled ? 'default' : 'outline'} className="rounded-full px-2 py-0.5 text-[10px]">
+                                {statusLabel}
+                            </Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span>{t('apiKey.card.id', { id: apiKey.id })}</span>
+                            <span>|</span>
+                            <span>{t('apiKey.card.expireAt')}: {expireAtLabel}</span>
+                        </div>
+                    </div>
 
-            <div className="flex items-center gap-1.5">
-                <motion.button
-                    type="button"
-                    layoutId={statsLayoutId}
-                    onClick={onViewStats}
-                    className="flex size-8 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
-                    title="Stats"
-                >
-                    <Info className="size-4" />
-                </motion.button>
-                <motion.button
-                    type="button"
-                    layoutId={editLayoutId}
-                    onClick={onEdit}
-                    className="flex size-8 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
-                    title="Edit"
-                >
-                    <Pencil className="size-4" />
-                </motion.button>
-                <CopyIconButton
-                    text={apiKey.api_key}
-                    className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95"
-                    copyIconClassName="size-4"
-                    checkIconClassName="size-4"
-                />
+                    <div className="flex items-center gap-1.5">
+                        <motion.button
+                            type="button"
+                            layoutId={statsLayoutId}
+                            onClick={onViewStats}
+                            className="flex size-8 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+                            title={t('apiKey.card.actions.stats')}
+                        >
+                            <Info className="size-4" />
+                        </motion.button>
+                        <motion.button
+                            type="button"
+                            layoutId={editLayoutId}
+                            onClick={onEdit}
+                            className="flex size-8 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+                            title={t('apiKey.card.actions.edit')}
+                        >
+                            <Pencil className="size-4" />
+                        </motion.button>
 
-                {!confirmDelete && (
-                    <motion.button
-                        layoutId={deleteLayoutId}
-                        onClick={() => setConfirmDelete(true)}
-                        className="flex size-8 items-center justify-center rounded-lg bg-destructive/10 text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
-                    >
-                        <Trash2 className="size-4" />
-                    </motion.button>
-                )}
+                        {!confirmDelete && (
+                            <motion.button
+                                layoutId={deleteLayoutId}
+                                onClick={() => setConfirmDelete(true)}
+                                className="flex size-8 items-center justify-center rounded-xl bg-destructive/10 text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                                title={t('apiKey.card.actions.delete')}
+                            >
+                                <Trash2 className="size-4" />
+                            </motion.button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-border/60 bg-background/70 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                            <ShieldCheck className="size-3.5" />
+                            {t('apiKey.card.secret')}
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={() => setShowSecret((current) => !current)}
+                                className="flex size-8 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                title={showSecret ? t('apiKey.card.actions.hide') : t('apiKey.card.actions.show')}
+                            >
+                                {showSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                            </button>
+                            <CopyIconButton
+                                text={apiKey.api_key}
+                                className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95"
+                                copyIconClassName="size-4"
+                                checkIconClassName="size-4"
+                            />
+                        </div>
+                    </div>
+                    <div className="truncate rounded-xl bg-muted/40 px-3 py-2 font-mono text-sm text-card-foreground">
+                        {keyValue}
+                    </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                    <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                            <Sparkles className="size-3.5" />
+                            {t('apiKey.card.authorizedModels')}
+                        </div>
+                        {authorizedModels.length === 0 ? (
+                            <div className="text-sm text-muted-foreground">{t('apiKey.card.allModels')}</div>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {authorizedModels.slice(0, 6).map((model) => (
+                                    <Badge key={model} variant="outline" className="rounded-full bg-background/70 px-2.5 py-1 text-xs">
+                                        {model}
+                                    </Badge>
+                                ))}
+                                {authorizedModels.length > 6 && (
+                                    <Badge variant="outline" className="rounded-full bg-background/70 px-2.5 py-1 text-xs">
+                                        {t('apiKey.card.moreModels', { count: authorizedModels.length - 6 })}
+                                    </Badge>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
+                        <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                            <Gauge className="size-3.5" />
+                            {t('apiKey.card.usage')}
+                        </div>
+                        <div className="grid gap-3">
+                            <div className="rounded-xl bg-muted/40 p-3">
+                                <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                    <WalletCards className="size-3.5" />
+                                    {t('apiKey.card.quota')}
+                                </div>
+                                {hasQuotaLimit ? (
+                                    <>
+                                        <div className="text-sm font-semibold text-card-foreground">
+                                            ${remainingQuota?.toFixed(2)} / ${apiKey.max_cost?.toFixed(2)}
+                                        </div>
+                                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                                            <div
+                                                className={cn(
+                                                    'h-full rounded-full transition-all',
+                                                    quotaProgress >= 90 ? 'bg-destructive' : 'bg-primary'
+                                                )}
+                                                style={{ width: `${quotaProgress}%` }}
+                                            />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-sm font-semibold text-card-foreground">
+                                        {t('apiKey.card.unlimitedQuota')}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-xl bg-muted/40 p-3">
+                                    <div className="text-xs text-muted-foreground">{t('apiKey.card.totalTokens')}</div>
+                                    <div className="mt-1 text-sm font-semibold text-card-foreground">
+                                        {tokenUsage ? `${tokenUsage.value}${tokenUsage.unit}` : t('apiKey.card.noUsage')}
+                                    </div>
+                                </div>
+                                <div className="rounded-xl bg-muted/40 p-3">
+                                    <div className="text-xs text-muted-foreground">{t('apiKey.card.totalCost')}</div>
+                                    <div className="mt-1 text-sm font-semibold text-card-foreground">
+                                        {totalCostFormatted ? `${totalCostFormatted.value}${totalCostFormatted.unit}` : '$0.00'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <AnimatePresence>
                 {confirmDelete && (
                     <motion.div
                         layoutId={deleteLayoutId}
-                        className="absolute inset-0 flex items-center justify-center gap-2 bg-destructive p-3 rounded-xl"
+                        className="absolute inset-0 flex items-center justify-center gap-2 rounded-2xl bg-destructive p-4"
                         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     >
                         <button
@@ -575,6 +730,7 @@ function APIKeyPanelBase({
 }) {
     const t = useTranslations('setting');
     const { data: apiKeys, isLoading: apiKeysLoading, error: apiKeysError } = useAPIKeyList();
+    const { data: statsList = [] } = useStatsAPIKey();
     const createAPIKey = useCreateAPIKey();
     const updateAPIKey = useUpdateAPIKey();
     const deleteAPIKey = useDeleteAPIKey();
@@ -594,6 +750,10 @@ function APIKeyPanelBase({
         if (!apiKeys) return [];
         return [...apiKeys].sort((a, b) => a.id - b.id);
     }, [apiKeys]);
+
+    const statsByAPIKeyId = useMemo(() => {
+        return new Map(statsList.map((item) => [item.api_key_id, item]));
+    }, [statsList]);
 
     const handleDelete = useCallback((id: number) => {
         setDeletingId(id);
@@ -723,6 +883,7 @@ function APIKeyPanelBase({
                                 <APIKeyKeyItem
                                     key={apiKey.id}
                                     apiKey={apiKey}
+                                    stats={statsByAPIKeyId.get(apiKey.id)}
                                     statsLayoutId={statsLayoutId}
                                     editLayoutId={editLayoutId}
                                     deleteLayoutId={deleteLayoutId}

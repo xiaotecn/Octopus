@@ -97,6 +97,8 @@ import {
   FilterX,
   Link2,
   MoreHorizontal,
+  Eye,
+  EyeOff,
   Pencil,
   Pin,
   PinOff,
@@ -482,6 +484,15 @@ function formatBalance(value: number) {
   if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(2)}K`;
   return value.toFixed(2);
+}
+
+function maskSiteURL(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const protocolMatch = trimmed.match(/^[a-z]+:\/\//i);
+  if (!protocolMatch) return "********";
+  return `${protocolMatch[0]}********`;
 }
 
 function normalizeSearchTerm(value: string) {
@@ -898,6 +909,9 @@ export function Site() {
   const [checkinFilterStatus, setCheckinFilterStatus] =
     useState<CheckinFilterStatus>("all");
   const [expandedSiteIds, setExpandedSiteIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [revealedSiteURLIds, setRevealedSiteURLIds] = useState<Set<number>>(
     () => new Set(),
   );
   const [syncingAccountIds, setSyncingAccountIds] = useState<Set<number>>(
@@ -1743,6 +1757,10 @@ export function Site() {
     hasFilteredAccounts,
   }: VisibleSite) => {
     const isExpanded = forceExpanded || expandedSiteIds.has(site.id);
+    const isSiteURLRevealed = revealedSiteURLIds.has(site.id);
+    const displayBaseURL = isSiteURLRevealed
+      ? site.base_url
+      : maskSiteURL(site.base_url);
 
     return (
       <section
@@ -1805,15 +1823,39 @@ export function Site() {
 
                 <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                   <Link2 className="size-4 shrink-0" />
-                  <a
-                    href={site.base_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="truncate hover:text-foreground hover:underline transition-colors"
-                    onClick={(e) => e.stopPropagation()}
+                  {isSiteURLRevealed ? (
+                    <a
+                      href={site.base_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="truncate hover:text-foreground hover:underline transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {displayBaseURL}
+                    </a>
+                  ) : (
+                    <span className="truncate">{displayBaseURL}</span>
+                  )}
+                  <button
+                    type="button"
+                    className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                    title={isSiteURLRevealed ? "隐藏链接" : "显示链接"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRevealedSiteURLIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(site.id)) next.delete(site.id);
+                        else next.add(site.id);
+                        return next;
+                      });
+                    }}
                   >
-                    {site.base_url}
-                  </a>
+                    {isSiteURLRevealed ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">

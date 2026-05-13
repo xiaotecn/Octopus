@@ -233,6 +233,30 @@
             "empty": "暫無 API 金鑰",
             "add": "新增金鑰",
             "loadFailed": "載入失敗",
+            "card": {
+                "id": "ID #{id}",
+                "enabled": "已啟用",
+                "disabled": "已停用",
+                "secret": "金鑰資訊",
+                "authorizedModels": "授權模型",
+                "allModels": "全部模型可用",
+                "moreModels": "+{count} 個",
+                "usage": "使用情況",
+                "quota": "目前額度",
+                "unlimitedQuota": "無限額度",
+                "totalTokens": "已用 Token",
+                "totalCost": "已用費用",
+                "noUsage": "暫無使用",
+                "expireAt": "過期時間",
+                "neverExpire": "永不過期",
+                "actions": {
+                    "show": "顯示完整金鑰",
+                    "hide": "隱藏完整金鑰",
+                    "stats": "查看統計",
+                    "edit": "編輯金鑰",
+                    "delete": "刪除金鑰"
+                }
+            },
             "form": {
                 "name": "名稱",
                 "maxCost": "最大金額",
