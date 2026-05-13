@@ -361,7 +361,8 @@ func requestJSONWithManagedAccessToken(ctx context.Context, siteRecord *model.Si
 func requestJSONWithManagedHeaders(ctx context.Context, siteRecord *model.Site, method string, requestURL string, body any, accessToken string, extraHeaders map[string]string, accounts ...*model.SiteAccount) (map[string]any, error) {
 	var firstErr error
 	for _, headers := range buildManagedAuthHeaders(siteRecord, accessToken) {
-		payload, err := requestJSON(ctx, siteRecord, method, requestURL, body, mergeHeaders(headers, extraHeaders), accounts...)
+		requestHeaders := mergeHeaders(headers, extraHeaders)
+		payload, err := requestJSONWithManagedRequestHeaders(ctx, siteRecord, method, requestURL, body, requestHeaders, accounts...)
 		if err == nil {
 			return payload, nil
 		}
@@ -375,15 +376,24 @@ func requestJSONWithManagedHeaders(ctx context.Context, siteRecord *model.Site, 
 	return nil, firstErr
 }
 
+func requestJSONWithManagedRequestHeaders(ctx context.Context, siteRecord *model.Site, method string, requestURL string, body any, headers map[string]string, accounts ...*model.SiteAccount) (map[string]any, error) {
+	cookieHeader := firstNonEmptyString(headers["Cookie"], headers["cookie"])
+	if cookieHeader == "" {
+		return requestJSON(ctx, siteRecord, method, requestURL, body, headers, accounts...)
+	}
+	payload, _, err := anyRouterRequestJSONWithCookies(ctx, siteRecord, method, requestURL, body, headers, accounts...)
+	return payload, err
+}
+
 func buildManagedAuthHeaders(siteRecord *model.Site, accessToken string) []map[string]string {
 	token := strings.TrimSpace(accessToken)
 	if token == "" {
 		return []map[string]string{{}}
 	}
 
-	candidates := make([]map[string]string, 0, 2)
-	if looksLikeCookieToken(token) {
-		cookieHeaders := map[string]string{"Cookie": token}
+	candidates := make([]map[string]string, 0, 4)
+	for _, cookie := range buildManagedCookieCandidates(token) {
+		cookieHeaders := map[string]string{"Cookie": cookie}
 		for key, value := range buildManagedCookieContextHeaders(siteRecord) {
 			cookieHeaders[key] = value
 		}
@@ -391,6 +401,13 @@ func buildManagedAuthHeaders(siteRecord *model.Site, accessToken string) []map[s
 	}
 	candidates = append(candidates, map[string]string{"Authorization": ensureBearer(token)})
 	return candidates
+}
+
+func buildManagedCookieCandidates(token string) []string {
+	if !looksLikeCookieToken(token) && !looksLikeManagedSessionValue(token) {
+		return nil
+	}
+	return anyRouterBuildCookieCandidates(token)
 }
 
 func buildManagedCookieContextHeaders(siteRecord *model.Site) map[string]string {
@@ -402,10 +419,23 @@ func buildManagedCookieContextHeaders(siteRecord *model.Site) map[string]string 
 		return nil
 	}
 	return map[string]string{
+		"Accept":        "application/json, text/plain, */*",
+		"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
 		"Origin":        baseURL,
 		"Referer":       baseURL + "/console/token",
 		"Cache-Control": "no-store",
 	}
+}
+
+func looksLikeManagedSessionValue(token string) bool {
+	trimmed := strings.TrimSpace(token)
+	if trimmed == "" {
+		return false
+	}
+	if strings.HasPrefix(strings.ToLower(trimmed), "bearer ") {
+		trimmed = strings.TrimSpace(trimmed[7:])
+	}
+	return strings.HasPrefix(trimmed, "MT")
 }
 
 func looksLikeCookieToken(token string) bool {

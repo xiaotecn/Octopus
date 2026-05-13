@@ -10,6 +10,63 @@ import (
 	"github.com/bestruirui/octopus/internal/model"
 )
 
+func TestRequestJSONWithManagedAccessTokenHandlesShieldedRawSessionCookie(t *testing.T) {
+	platformUserID := 11494
+	var cookies []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookies = append(cookies, r.Header.Get("Cookie"))
+		switch {
+		case r.URL.Path == "/api/token/":
+			cookieHeader := r.Header.Get("Cookie")
+			if !strings.Contains(cookieHeader, "session="+cookieShieldedToken) || !strings.Contains(cookieHeader, "acw_sc__v2="+anyRouterChallengeACW) {
+				w.Header().Add("Set-Cookie", "cdn_sec_tc="+anyRouterChallengeCookie+"; Path=/; HttpOnly")
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				_, _ = w.Write([]byte(anyRouterChallengeHTML))
+				return
+			}
+			if !strings.Contains(cookieHeader, "cdn_sec_tc="+anyRouterChallengeCookie) {
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"success":false,"message":"missing shield cookie"}`))
+				return
+			}
+			if r.Header.Get("New-API-User") != "11494" {
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"success":false,"message":"missing user id"}`))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":{"items":[{"name":"primary","key":"managed-key","group":"default","status":1}]}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	payload, err := requestJSONWithManagedAccessToken(
+		context.Background(),
+		&model.Site{Platform: model.SitePlatformNewAPI, BaseURL: server.URL},
+		http.MethodGet,
+		server.URL+"/api/token/",
+		nil,
+		cookieShieldedToken,
+		&model.SiteAccount{PlatformUserID: &platformUserID},
+	)
+	if err != nil {
+		t.Fatalf("requestJSONWithManagedAccessToken returned error: %v", err)
+	}
+	if items := parseTokenItems(payload); len(items) != 1 {
+		t.Fatalf("expected one token item, got %#v", payload)
+	}
+	joined := strings.Join(cookies, "\n")
+	if !strings.Contains(joined, "session="+cookieShieldedToken) {
+		t.Fatalf("expected managed requests to try session cookie candidate, cookies=%q", joined)
+	}
+	if !strings.Contains(joined, "acw_sc__v2="+anyRouterChallengeACW) {
+		t.Fatalf("expected managed requests to solve shield cookie challenge, cookies=%q", joined)
+	}
+}
+
 func TestSyncManagementPlatformDiscoversNewAPIUserID(t *testing.T) {
 	observedTokenUserHeader := ""
 	observedGroupUserHeader := ""

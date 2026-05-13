@@ -76,6 +76,25 @@ func TestBuildManagedAuthHeadersUsesCookieThenBearerFallback(t *testing.T) {
 	}
 }
 
+func TestBuildManagedAuthHeadersAddsSessionCookieCandidatesForRawSessionValue(t *testing.T) {
+	headers := buildManagedAuthHeaders(&model.Site{BaseURL: "https://example.com"}, cookieShieldedToken)
+	if len(headers) != 4 {
+		t.Fatalf("expected raw cookie, session cookie, token cookie, and bearer fallback, got %d", len(headers))
+	}
+	if headers[0]["Cookie"] != cookieShieldedToken {
+		t.Fatalf("expected raw cookie candidate first, got %#v", headers[0])
+	}
+	if headers[1]["Cookie"] != "session="+cookieShieldedToken {
+		t.Fatalf("expected session cookie candidate second, got %#v", headers[1])
+	}
+	if headers[2]["Cookie"] != "token="+cookieShieldedToken {
+		t.Fatalf("expected token cookie candidate third, got %#v", headers[2])
+	}
+	if headers[3]["Authorization"] != "Bearer "+cookieShieldedToken {
+		t.Fatalf("expected bearer fallback last, got %#v", headers[3])
+	}
+}
+
 func TestBuildManagedAuthHeadersUsesBearerOnlyForPlainToken(t *testing.T) {
 	headers := buildManagedAuthHeaders(&model.Site{BaseURL: "https://example.com"}, "plain-token")
 	if len(headers) != 1 {
