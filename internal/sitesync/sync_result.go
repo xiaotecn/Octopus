@@ -133,13 +133,21 @@ func finalizeSiteGroupSyncResults(
 ) []siteGroupSyncResult {
 	resultMap := make(map[string]siteGroupSyncResult)
 	groupNames := collectCurrentGroupNames(account, groups, tokens)
-	hasKeyMap := make(map[string]bool, len(tokens))
+	hasAnyTokenMap := make(map[string]bool, len(tokens))
+	hasUsableKeyMap := make(map[string]bool, len(tokens))
+	hasMaskedPendingKeyMap := make(map[string]bool, len(tokens))
 	currentKeys := make(map[string]struct{})
 	modelCounts := make(map[string]int)
 
 	for _, token := range tokens {
 		groupKey := model.NormalizeSiteGroupKey(token.GroupKey)
-		hasKeyMap[groupKey] = true
+		hasAnyTokenMap[groupKey] = true
+		if model.NormalizeSiteTokenValueStatus(token.ValueStatus, token.Token) == model.SiteTokenValueStatusMaskedPending {
+			hasMaskedPendingKeyMap[groupKey] = true
+		}
+		if model.IsReadySiteToken(token) && !model.IsMaskedSiteTokenValue(token.Token) {
+			hasUsableKeyMap[groupKey] = true
+		}
 		currentKeys[groupKey] = struct{}{}
 	}
 	for _, group := range groups {
@@ -177,19 +185,23 @@ func finalizeSiteGroupSyncResults(
 		result := siteGroupSyncResult{
 			GroupKey:   groupKey,
 			GroupName:  resolveGroupName(groupKey, "", groupNames),
-			HasKey:     hasKeyMap[groupKey],
+			HasKey:     hasAnyTokenMap[groupKey],
 			ModelCount: count,
 		}
 		if count > 0 {
 			result.Status = siteGroupSyncStatusSynced
 			result.Authoritative = true
 			result.Message = fmt.Sprintf("通过显式分组元数据同步到 %d 个模型", count)
-		} else if hasKeyMap[groupKey] {
+		} else if hasUsableKeyMap[groupKey] {
 			result.Status = siteGroupSyncStatusUnresolved
 			result.Message = "本次未能确认该分组模型，已保留历史模型"
 		} else {
 			result.Status = siteGroupSyncStatusMissingKey
-			result.Message = "该分组没有可用 Key，本次保留历史模型"
+			if hasMaskedPendingKeyMap[groupKey] {
+				result.Message = "该分组只有脱敏 Key，请先补全文明文 Key 后再同步模型"
+			} else {
+				result.Message = "该分组没有可用 Key，本次保留历史模型"
+			}
 		}
 		resultMap[groupKey] = result
 	}

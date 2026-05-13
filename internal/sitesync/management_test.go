@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	dbpkg "github.com/bestruirui/octopus/internal/db"
 	"github.com/bestruirui/octopus/internal/model"
+	"github.com/bestruirui/octopus/internal/op"
 )
 
 func TestRequestJSONWithManagedAccessTokenHandlesShieldedRawSessionCookie(t *testing.T) {
@@ -544,6 +546,91 @@ func TestSyncManagementPlatformReturnsStableMissingGroupKeyError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `site sync requires a key for group "default"; create a key for that group on the site and sync again`) {
 		t.Fatalf("expected stable missing-key error, got %v", err)
+	}
+}
+
+func TestSyncAccountPersistsMaskedPendingManagementTokensOnFailedSync(t *testing.T) {
+	ctx := setupProjectTestDB(t)
+	platformUserID := 7788
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.URL.Path == "/api/token/":
+			_, _ = w.Write([]byte(`{"data":{"items":[{"name":"primary","masked_key":"sk-abcd****wxyz","group":"default","status":1}]}}`))
+		case r.URL.Path == "/api/user/self/groups":
+			_, _ = w.Write([]byte(`{"data":[{"id":"default","name":"default"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	site := &model.Site{
+		Name:     "Masked Sync Site",
+		Platform: model.SitePlatformNewAPI,
+		BaseURL:  server.URL,
+		Enabled:  true,
+	}
+	if err := op.SiteCreate(site, ctx); err != nil {
+		t.Fatalf("SiteCreate failed: %v", err)
+	}
+
+	account := &model.SiteAccount{
+		SiteID:         site.ID,
+		Name:           "Primary Account",
+		CredentialType: model.SiteCredentialTypeAccessToken,
+		AccessToken:    "test-access-token",
+		PlatformUserID: &platformUserID,
+		Enabled:        true,
+		AutoSync:       true,
+	}
+	if err := op.SiteAccountCreate(account, ctx); err != nil {
+		t.Fatalf("SiteAccountCreate failed: %v", err)
+	}
+
+	existingModel := model.SiteModel{
+		SiteAccountID: account.ID,
+		GroupKey:      model.SiteDefaultGroupKey,
+		ModelName:     "gpt-4o-mini",
+		Source:        "sync",
+		RouteType:     model.SiteModelRouteTypeOpenAIChat,
+		RouteSource:   model.SiteModelRouteSourceSyncInferred,
+	}
+	if err := dbpkg.GetDB().WithContext(ctx).Create(&existingModel).Error; err != nil {
+		t.Fatalf("create existing site model failed: %v", err)
+	}
+
+	_, err := SyncAccount(ctx, account.ID)
+	if err == nil {
+		t.Fatalf("expected SyncAccount to return an error when only masked keys are available")
+	}
+	if !strings.Contains(err.Error(), "脱敏 Key") {
+		t.Fatalf("expected masked key guidance, got %v", err)
+	}
+
+	reloaded, err := op.SiteAccountGet(account.ID, ctx)
+	if err != nil {
+		t.Fatalf("SiteAccountGet failed: %v", err)
+	}
+	if reloaded.LastSyncStatus != model.SiteExecutionStatusFailed {
+		t.Fatalf("expected failed last_sync_status, got %q", reloaded.LastSyncStatus)
+	}
+	if len(reloaded.Tokens) != 1 {
+		t.Fatalf("expected one persisted masked token, got %+v", reloaded.Tokens)
+	}
+	if reloaded.Tokens[0].Token != "sk-abcd****wxyz" {
+		t.Fatalf("expected masked token value to be preserved, got %+v", reloaded.Tokens[0])
+	}
+	if reloaded.Tokens[0].ValueStatus != model.SiteTokenValueStatusMaskedPending {
+		t.Fatalf("expected masked_pending token status, got %+v", reloaded.Tokens[0])
+	}
+	if reloaded.Tokens[0].Enabled {
+		t.Fatalf("expected masked_pending token to stay disabled")
+	}
+	if len(reloaded.Models) != 1 || reloaded.Models[0].ModelName != "gpt-4o-mini" {
+		t.Fatalf("expected historical models to be preserved on failed sync, got %+v", reloaded.Models)
 	}
 }
 

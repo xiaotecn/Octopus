@@ -207,15 +207,22 @@ func syncManagementPlatform(ctx context.Context, siteRecord *model.Site, account
 	siteModels = expandExplicitGroupModelsToGroups(siteModels, groups, tokens)
 	groupResults := finalizeSiteGroupSyncResults(account, groups, tokens, siteModels, tokenGroupResults)
 	status := buildSyncSnapshotStatus(groupResults)
+	snapshot := &syncSnapshot{accessToken: accessToken, groups: groups, tokens: tokens, models: siteModels, groupResults: groupResults, status: status}
 	if status == model.SiteExecutionStatusFailed {
-		return nil, buildSyncSnapshotFailure(groupResults)
+		snapshot.message = buildSyncSnapshotMessage(groupResults)
+		return snapshot, buildSyncSnapshotFailure(groupResults)
 	}
 	balance, balanceUsed, todayIncome := fetchSiteAccountBalance(ctx, siteRecord, account, accessToken, firstManagedPlatformUserID(account))
 	prices, priceErr := fetchPricing(ctx, siteRecord, account, accessToken, groups)
 	if priceErr != nil {
 		log.Warnf("site pricing fetch skipped (account=%d): %v", account.ID, priceErr)
 	}
-	return &syncSnapshot{accessToken: accessToken, groups: groups, tokens: tokens, models: siteModels, prices: prices, groupResults: groupResults, status: status, balance: balance, balanceUsed: balanceUsed, todayIncome: todayIncome, message: buildSyncSnapshotMessage(groupResults)}, nil
+	snapshot.prices = prices
+	snapshot.balance = balance
+	snapshot.balanceUsed = balanceUsed
+	snapshot.todayIncome = todayIncome
+	snapshot.message = buildSyncSnapshotMessage(groupResults)
+	return snapshot, nil
 }
 
 func syncSub2API(ctx context.Context, siteRecord *model.Site, account *model.SiteAccount) (*syncSnapshot, error) {

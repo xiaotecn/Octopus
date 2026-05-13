@@ -31,15 +31,45 @@ func fetchManagementTokens(ctx context.Context, siteRecord *model.Site, account 
 	items := parseTokenItems(payload)
 	tokens := make([]model.SiteToken, 0, len(items))
 	for index, item := range items {
-		tokenValue := strings.TrimSpace(jsonString(item["key"]))
+		tokenValue, valueStatus := extractManagedTokenValue(item)
 		if tokenValue == "" {
 			continue
 		}
 		groupKey := model.NormalizeSiteGroupKey(firstNonEmptyString(jsonString(item["group"]), jsonString(item["token_group"]), jsonString(item["group_name"])))
 		groupName := model.NormalizeSiteGroupName(groupKey, firstNonEmptyString(jsonString(item["group_name"]), jsonString(item["group"]), jsonString(item["token_group"])))
-		tokens = append(tokens, model.SiteToken{Name: firstNonEmptyString(strings.TrimSpace(jsonString(item["name"])), fmt.Sprintf("token-%d", index+1)), Token: tokenValue, GroupKey: groupKey, GroupName: groupName, Enabled: parseEnabledFlag(item["status"]), Source: "sync", IsDefault: index == 0})
+		enabled := parseEnabledFlag(item["status"])
+		if valueStatus == model.SiteTokenValueStatusMaskedPending {
+			enabled = false
+		}
+		tokens = append(tokens, model.SiteToken{
+			Name:        firstNonEmptyString(strings.TrimSpace(jsonString(item["name"])), fmt.Sprintf("token-%d", index+1)),
+			Token:       tokenValue,
+			ValueStatus: valueStatus,
+			GroupKey:    groupKey,
+			GroupName:   groupName,
+			Enabled:     enabled,
+			Source:      "sync",
+			IsDefault:   index == 0,
+		})
 	}
 	return tokens, nil
+}
+
+func extractManagedTokenValue(item map[string]any) (string, model.SiteTokenValueStatus) {
+	tokenValue := firstNonEmptyString(
+		jsonString(item["key"]),
+		jsonString(item["token"]),
+		jsonString(item["raw_key"]),
+		jsonString(item["rawKey"]),
+		jsonString(item["masked_key"]),
+		jsonString(item["maskedKey"]),
+		jsonString(item["key_masked"]),
+		jsonString(item["keyMasked"]),
+	)
+	if tokenValue == "" {
+		return "", model.SiteTokenValueStatusReady
+	}
+	return tokenValue, model.NormalizeSiteTokenValueStatus(model.SiteTokenValueStatusReady, tokenValue)
 }
 
 func fetchManagementGroups(ctx context.Context, siteRecord *model.Site, account *model.SiteAccount, accessToken string) ([]model.SiteUserGroup, error) {
@@ -381,6 +411,9 @@ func pickModelTokensByGroup(tokens []model.SiteToken) []model.SiteToken {
 	order := make([]string, 0, len(tokens))
 	selected := make(map[string]model.SiteToken, len(tokens))
 	for _, token := range tokens {
+		if !model.IsReadySiteToken(token) || model.IsMaskedSiteTokenValue(token.Token) {
+			continue
+		}
 		groupKey := model.NormalizeSiteGroupKey(token.GroupKey)
 		token.GroupKey = groupKey
 		token.GroupName = model.NormalizeSiteGroupName(groupKey, token.GroupName)

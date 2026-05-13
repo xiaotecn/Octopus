@@ -33,6 +33,12 @@ func SyncAccount(ctx context.Context, accountID int) (*model.SiteSyncResult, err
 
 	snapshot, err := syncAccountState(ctx, siteRecord, account)
 	if err != nil {
+		if snapshot != nil {
+			if persistErr := persistSyncSnapshot(ctx, account.ID, snapshot); persistErr != nil {
+				return nil, persistErr
+			}
+			return nil, err
+		}
 		updateErr := updateAccountSyncState(ctx, account.ID, model.SiteExecutionStatusFailed, err.Error(), "")
 		if updateErr != nil {
 			log.Warnf("failed to update site account sync state (account=%d): %v", account.ID, updateErr)
