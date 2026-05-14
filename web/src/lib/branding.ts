@@ -81,7 +81,6 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
         ],
         screenshots: [
             {
-                src: './screenshot/desktop-home.png',
                 src: '/screenshot/desktop-home.png',
                 sizes: '1437x918',
                 type: 'image/png',
