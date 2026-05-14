@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useBranding } from '@/api/endpoints/setting';
-import { BRANDING_CACHE_KEY, buildBranding, DEFAULT_APPLE_ICON_PATH, DEFAULT_FAVICON_PATH, toBrandingCacheValue } from '@/lib/branding';
+import {
+    BRANDING_CACHE_KEY,
+    buildBranding,
+    buildBrandingManifest,
+    DEFAULT_APPLE_ICON_PATH,
+    DEFAULT_FAVICON_PATH,
+    DEFAULT_MANIFEST_PATH,
+    toBrandingCacheValue,
+} from '@/lib/branding';
 
 function updateMetaContent(name: string, content: string) {
     const element = document.querySelector(`meta[name="${name}"]`);
@@ -33,9 +41,15 @@ function syncFavicons(href: string, appleHref: string) {
     appleTouchIcon.setAttribute('href', appleHref);
 }
 
+function syncManifest(href: string) {
+    const manifest = ensureLink('manifest');
+    manifest.setAttribute('href', href);
+}
+
 export function BrandingSync() {
     const { data } = useBranding();
     const branding = buildBranding(data);
+    const manifestUrlRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!data) {
@@ -50,6 +64,21 @@ export function BrandingSync() {
         const iconHref = branding.siteLogoDataURL || DEFAULT_FAVICON_PATH;
         const appleIconHref = branding.siteLogoDataURL || DEFAULT_APPLE_ICON_PATH;
         syncFavicons(iconHref, appleIconHref);
+        if (manifestUrlRef.current) {
+            URL.revokeObjectURL(manifestUrlRef.current);
+            manifestUrlRef.current = null;
+        }
+        if (branding.siteLogoDataURL) {
+            const manifestBlob = new Blob(
+                [JSON.stringify(buildBrandingManifest(branding.siteTitle, branding.siteLogoDataURL))],
+                { type: 'application/manifest+json' },
+            );
+            const manifestUrl = URL.createObjectURL(manifestBlob);
+            manifestUrlRef.current = manifestUrl;
+            syncManifest(manifestUrl);
+        } else {
+            syncManifest(DEFAULT_MANIFEST_PATH);
+        }
 
         try {
             const payload = JSON.stringify(toBrandingCacheValue(branding));
@@ -57,6 +86,13 @@ export function BrandingSync() {
         } catch {
             // Ignore storage failures (e.g. private mode / quota)
         }
+
+        return () => {
+            if (manifestUrlRef.current) {
+                URL.revokeObjectURL(manifestUrlRef.current);
+                manifestUrlRef.current = null;
+            }
+        };
     }, [data, branding.siteLogoDataURL, branding.siteTitle]);
 
     return null;

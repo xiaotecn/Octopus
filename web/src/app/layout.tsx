@@ -7,7 +7,15 @@ import QueryProvider from "@/provider/query";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { TooltipProvider } from "@/components/animate-ui/components/animate/tooltip";
 import { BrandingSync } from "@/components/branding-sync";
-import { BRANDING_CACHE_KEY, DEFAULT_APPLE_ICON_PATH, DEFAULT_FAVICON_PATH, DEFAULT_SITE_TITLE } from "@/lib/branding";
+import {
+  BRANDING_CACHE_KEY,
+  DEFAULT_APPLE_ICON_PATH,
+  DEFAULT_BACKGROUND_COLOR,
+  DEFAULT_FAVICON_PATH,
+  DEFAULT_MANIFEST_PATH,
+  DEFAULT_SITE_TITLE,
+  DEFAULT_THEME_COLOR,
+} from "@/lib/branding";
 
 export default function RootLayout({
   children,
@@ -20,6 +28,9 @@ export default function RootLayout({
       const defaultSiteTitle = ${JSON.stringify(DEFAULT_SITE_TITLE)};
       const defaultFaviconPath = ${JSON.stringify(DEFAULT_FAVICON_PATH)};
       const defaultAppleIconPath = ${JSON.stringify(DEFAULT_APPLE_ICON_PATH)};
+      const defaultManifestPath = ${JSON.stringify(DEFAULT_MANIFEST_PATH)};
+      const defaultThemeColor = ${JSON.stringify(DEFAULT_THEME_COLOR)};
+      const defaultBackgroundColor = ${JSON.stringify(DEFAULT_BACKGROUND_COLOR)};
 
       const safeTrim = (value) => (typeof value === 'string' ? value.trim() : '');
       const setMetaContent = (name, content) => {
@@ -46,6 +57,42 @@ export default function RootLayout({
         const appleTouchIcon = ensureLink('apple-touch-icon');
         appleTouchIcon.setAttribute('href', appleHref);
       };
+      const buildManifestObject = (siteTitle, siteLogoDataURL) => {
+        const iconTypeMatch = siteLogoDataURL.match(/^data:(image\\/[^;]+);/i);
+        const iconType = iconTypeMatch ? iconTypeMatch[1] : 'image/png';
+        return {
+          name: siteTitle,
+          short_name: (siteTitle || defaultSiteTitle).slice(0, 12) || defaultSiteTitle,
+          description: siteTitle,
+          id: './',
+          start_url: './',
+          scope: './',
+          display: 'standalone',
+          orientation: 'any',
+          theme_color: defaultThemeColor,
+          background_color: defaultBackgroundColor,
+          icons: siteLogoDataURL ? [
+            { src: siteLogoDataURL, sizes: '512x512', type: iconType, purpose: 'any' },
+            { src: siteLogoDataURL, sizes: '512x512', type: iconType, purpose: 'maskable' }
+          ] : []
+        };
+      };
+      const syncManifest = (siteTitle, siteLogoDataURL) => {
+        const manifest = ensureLink('manifest');
+        const prevHref = manifest.getAttribute('href') || '';
+        if (siteLogoDataURL) {
+          if (prevHref.startsWith('blob:')) {
+            try { URL.revokeObjectURL(prevHref); } catch {}
+          }
+          const blob = new Blob(
+            [JSON.stringify(buildManifestObject(siteTitle, siteLogoDataURL))],
+            { type: 'application/manifest+json' }
+          );
+          manifest.setAttribute('href', URL.createObjectURL(blob));
+        } else {
+          manifest.setAttribute('href', defaultManifestPath);
+        }
+      };
 
       try {
         const raw = localStorage.getItem(cacheKey);
@@ -63,6 +110,7 @@ export default function RootLayout({
         setMetaContent('mobile-web-app-title', siteTitle);
 
         syncFavicons(siteLogoDataURL || defaultFaviconPath, siteLogoDataURL || defaultAppleIconPath);
+        syncManifest(siteTitle, siteLogoDataURL);
       } catch {}
     })();
   `;
@@ -70,7 +118,7 @@ export default function RootLayout({
   return (
     <html suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#eae9e3" />
+        <meta name="theme-color" content={DEFAULT_THEME_COLOR} />
         <meta name="application-name" content={DEFAULT_SITE_TITLE} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black" />
@@ -78,7 +126,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-status-bar-style" content="black" />
         <meta name="mobile-web-app-title" content={DEFAULT_SITE_TITLE} />
-        <link rel="manifest" href="./manifest.json" />
+        <link rel="manifest" href={DEFAULT_MANIFEST_PATH} />
         <link rel="icon" href={DEFAULT_FAVICON_PATH} sizes="any" />
         <link rel="shortcut icon" href={DEFAULT_FAVICON_PATH} />
         <link rel="apple-touch-icon" href={DEFAULT_APPLE_ICON_PATH} />
