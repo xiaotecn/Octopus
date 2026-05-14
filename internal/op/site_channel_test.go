@@ -435,7 +435,7 @@ func TestSiteChannelAccountGetShowsExplicitGroupModelsWithoutKeys(t *testing.T) 
 	}
 }
 
-func TestSiteChannelAccountGetMapsStoredDefaultModelsIntoExplicitGroups(t *testing.T) {
+func TestSiteChannelAccountGetKeepsStoredGroupForExplicitRouteMetadata(t *testing.T) {
 	ctx := setupSiteOpTestDB(t)
 
 	site := &model.Site{
@@ -516,19 +516,11 @@ func TestSiteChannelAccountGetMapsStoredDefaultModelsIntoExplicitGroups(t *testi
 	}
 
 	defaultGroup := groupByKey["default"]
-	if len(defaultGroup.Models) != 0 {
-		t.Fatalf("expected default group to exclude model whose explicit enable_groups do not include default, got %+v", defaultGroup.Models)
+	if len(defaultGroup.Models) != 1 || defaultGroup.Models[0].ModelName != "gpt-5.4" {
+		t.Fatalf("expected stored default group to keep gpt-5.4, got %+v", defaultGroup.Models)
 	}
-
-	plusGroup, ok := groupByKey["plus"]
-	if !ok {
-		t.Fatalf("expected explicit plus group to be synthesized, got %+v", view.Groups)
-	}
-	if len(plusGroup.Models) != 1 || plusGroup.Models[0].ModelName != "gpt-5.4" {
-		t.Fatalf("expected plus group to contain gpt-5.4, got %+v", plusGroup.Models)
-	}
-	if plusGroup.HasKeys {
-		t.Fatalf("expected synthesized plus group to have no keys")
+	if _, ok := groupByKey["plus"]; ok {
+		t.Fatalf("expected explicit plus group not to be synthesized during read-only channel view, got %+v", view.Groups)
 	}
 }
 
