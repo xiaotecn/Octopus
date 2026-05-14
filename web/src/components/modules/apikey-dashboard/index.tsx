@@ -77,7 +77,7 @@ export function APIKeyDashboard() {
 
     // Quota calculations
     const usedCost = stats.total_cost.raw;
-    const maxCost = info.max_cost || 0;
+    const currentBalance = typeof info.max_cost === 'number' && info.max_cost >= 0 ? info.max_cost : null;
 
     // Expiry calculations
     const expireAt = info.expire_at ? dayjs.unix(info.expire_at) : null;
@@ -175,12 +175,15 @@ export function APIKeyDashboard() {
                                     <AnimatedNumber value={stats.total_cost.formatted.value} />
                                     <span className="text-lg font-normal text-muted-foreground ml-1">{stats.total_cost.formatted.unit}</span>
                                 </div>
-                                {maxCost > 0 && (
+                                {currentBalance !== null && (
                                     <div className="mt-4">
-                                        <Progress value={Math.min(100, (usedCost / maxCost) * 100)} className="h-4 *:data-[slot=progress-indicator]:bg-chart-1" />
+                                        <Progress
+                                            value={Math.min(100, (usedCost / Math.max(usedCost + currentBalance, 1)) * 100)}
+                                            className="h-4 *:data-[slot=progress-indicator]:bg-chart-1"
+                                        />
                                         <div className="flex justify-between text-sm text-muted-foreground mt-1">
-                                            <span>0</span>
-                                            <span>{maxCost.toFixed(2)} $</span>
+                                            <span>当前余额</span>
+                                            <span>{currentBalance.toFixed(2)} $</span>
                                         </div>
                                     </div>
                                 )}

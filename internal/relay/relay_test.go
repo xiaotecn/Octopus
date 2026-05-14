@@ -482,6 +482,89 @@ func TestRelayMetricsUsesResponseModelForCostLookup(t *testing.T) {
 	}
 }
 
+func TestResolveModelPricePrefersManualConfiguredPriceOverSitePrice(t *testing.T) {
+	ctx := setupRelayTestDB(t)
+
+	site := &model.Site{
+		Name:     "price-priority-site",
+		Platform: model.SitePlatformNewAPI,
+		BaseURL:  "https://example.com",
+		Enabled:  true,
+	}
+	if err := op.SiteCreate(site, ctx); err != nil {
+		t.Fatalf("SiteCreate failed: %v", err)
+	}
+
+	account := &model.SiteAccount{
+		SiteID:         site.ID,
+		Name:           "price-priority-account",
+		CredentialType: model.SiteCredentialTypeAccessToken,
+		AccessToken:    "token",
+		Enabled:        true,
+	}
+	if err := op.SiteAccountCreate(account, ctx); err != nil {
+		t.Fatalf("SiteAccountCreate failed: %v", err)
+	}
+
+	channel := &model.Channel{
+		Name:     "price-priority-channel",
+		Type:     outbound.OutboundTypeOpenAIResponse,
+		Enabled:  true,
+		BaseUrls: []model.BaseUrl{{URL: "https://example.com/v1"}},
+		Model:    "gpt-5.4",
+	}
+	if err := op.ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate failed: %v", err)
+	}
+
+	binding := model.SiteChannelBinding{
+		SiteID:        site.ID,
+		SiteAccountID: account.ID,
+		GroupKey:      model.SiteDefaultGroupKey,
+		ChannelID:     channel.ID,
+	}
+	if err := dbpkg.GetDB().WithContext(ctx).Create(&binding).Error; err != nil {
+		t.Fatalf("create site channel binding failed: %v", err)
+	}
+
+	if err := op.SitePriceReplaceAccount(ctx, account.ID, []model.SitePrice{{
+		SiteAccountID: account.ID,
+		GroupKey:      model.SiteDefaultGroupKey,
+		ModelName:     "gpt-5.4",
+		InputPrice:    10,
+		OutputPrice:   20,
+	}}); err != nil {
+		t.Fatalf("SitePriceReplaceAccount failed: %v", err)
+	}
+
+	if err := op.LLMCreate(model.LLMInfo{
+		Name: "gpt-5.4",
+		LLMPrice: model.LLMPrice{
+			Input:  1,
+			Output: 2,
+		},
+	}, ctx); err != nil {
+		t.Fatalf("LLMCreate failed: %v", err)
+	}
+
+	metrics := NewRelayMetrics(0, "gpt-5.4", nil, &transformerModel.InternalLLMRequest{Model: "gpt-5.4"})
+	metrics.SetSelectedChannel(channel.ID)
+	metrics.SetInternalResponse(&transformerModel.InternalLLMResponse{
+		Model: "gpt-5.4",
+		Usage: &transformerModel.Usage{
+			PromptTokens:     1000,
+			CompletionTokens: 1000,
+		},
+	}, "gpt-5.4")
+
+	if metrics.Stats.InputCost != 0.001 {
+		t.Fatalf("expected manual configured input cost 0.001, got %f", metrics.Stats.InputCost)
+	}
+	if metrics.Stats.OutputCost != 0.002 {
+		t.Fatalf("expected manual configured output cost 0.002, got %f", metrics.Stats.OutputCost)
+	}
+}
+
 func TestRelayMetricsCapturesOpenAICompatibleInputBreakdown(t *testing.T) {
 	metrics := NewRelayMetrics(0, "alias-model", nil, &transformerModel.InternalLLMRequest{Model: "alias-model"})
 	payload := []byte(`{"model":"gpt-4o-mini","input":"hello world"}`)

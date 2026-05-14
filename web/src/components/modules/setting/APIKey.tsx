@@ -108,11 +108,11 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
         name: apiKey?.name ?? '',
         enabled: apiKey?.enabled ?? true,
         expire_at: apiKey?.expire_at,
-        max_cost: apiKey?.max_cost,
+        max_cost: apiKey?.max_cost != null ? apiKey.max_cost : -1,
         supported_models: apiKey?.supported_models,
     }));
     const [maxCostInput, setMaxCostInput] = useState(() =>
-        apiKey?.max_cost != null ? String(apiKey.max_cost) : ''
+        apiKey?.max_cost != null && apiKey.max_cost >= 0 ? String(apiKey.max_cost) : ''
     );
     const [expireTime, setExpireTime] = useState(() => {
         if (apiKey?.expire_at) {
@@ -132,7 +132,7 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
 
     const expireDate = parseExpireDate(form.expire_at);
     const neverExpire = !form.expire_at;
-    const isUnlimitedCost = maxCostInput.trim() === '';
+    const isUnlimitedCost = (form.max_cost ?? -1) < 0;
 
     const expireLabel = neverExpire
         ? t('apiKey.form.neverExpire')
@@ -172,13 +172,17 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
     const handleMaxCostChange = useCallback((val: string) => {
         const normalized = normalizeMoneyInput(val);
         setMaxCostInput(normalized);
+        if (normalized.trim() === '') {
+            updateForm({ max_cost: -1 });
+            return;
+        }
         const num = parseFloat(normalized);
-        updateForm({ max_cost: Number.isFinite(num) ? num : undefined });
+        updateForm({ max_cost: Number.isFinite(num) ? num : -1 });
     }, [updateForm]);
 
     const handleClearMaxCost = useCallback(() => {
         setMaxCostInput('');
-        updateForm({ max_cost: undefined });
+        updateForm({ max_cost: -1 });
     }, [updateForm]);
 
     const handleSubmit = useCallback((e: React.FormEvent) => {
@@ -202,14 +206,14 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
             </label>
 
             <div className="grid gap-1 text-xs text-muted-foreground">
-                {t('apiKey.form.maxCost')}
+                当前余额
                 <div className="flex items-center gap-2">
                     <div className="relative flex-1">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
                         <Input
                             type="text"
                             inputMode="decimal"
-                            placeholder={t('apiKey.form.maxCostPlaceholder')}
+                            placeholder="请输入余额"
                             value={maxCostInput}
                             onChange={(e) => handleMaxCostChange(e.target.value)}
                             className="h-9 text-sm rounded-xl pl-7"
@@ -229,7 +233,7 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
                             isPending && 'opacity-50 cursor-not-allowed'
                         )}
                     >
-                        {t('apiKey.form.unlimited')}
+                        不限额
                     </button>
                 </div>
             </div>
@@ -513,10 +517,10 @@ function APIKeyKeyItem({
     const tokenUsage = stats?.total_token.formatted;
     const totalCostRaw = stats?.total_cost.raw ?? 0;
     const totalCostFormatted = stats?.total_cost.formatted;
-    const hasQuotaLimit = typeof apiKey.max_cost === 'number' && Number.isFinite(apiKey.max_cost);
-    const remainingQuota = hasQuotaLimit ? Math.max(0, apiKey.max_cost! - totalCostRaw) : undefined;
-    const quotaProgress = hasQuotaLimit && apiKey.max_cost! > 0
-        ? Math.min(100, (totalCostRaw / apiKey.max_cost!) * 100)
+    const hasQuotaLimit = typeof apiKey.max_cost === 'number' && Number.isFinite(apiKey.max_cost) && apiKey.max_cost >= 0;
+    const currentBalance = hasQuotaLimit ? Math.max(0, apiKey.max_cost!) : undefined;
+    const quotaProgress = hasQuotaLimit && (currentBalance! + totalCostRaw) > 0
+        ? Math.min(100, (totalCostRaw / (currentBalance! + totalCostRaw)) * 100)
         : 0;
       const expireAtLabel = apiKey.expire_at
           ? formatDateTime(apiKey.expire_at)
@@ -601,9 +605,9 @@ function APIKeyKeyItem({
                           <div className="truncate text-sm font-medium text-card-foreground">{summaryModels}</div>
                       </div>
                       <div className="rounded-xl bg-background/60 px-3 py-2">
-                          <div className="text-[11px] text-muted-foreground">{t('apiKey.card.quota')}</div>
+                          <div className="text-[11px] text-muted-foreground">当前余额</div>
                           <div className="truncate text-sm font-medium text-card-foreground">
-                              {hasQuotaLimit ? `$${remainingQuota?.toFixed(2)}` : t('apiKey.card.unlimitedQuota')}
+                              {hasQuotaLimit ? `$${currentBalance?.toFixed(2)}` : t('apiKey.card.unlimitedQuota')}
                           </div>
                       </div>
                       <div className="rounded-xl bg-background/60 px-3 py-2">
@@ -683,12 +687,12 @@ function APIKeyKeyItem({
                                               <div className="rounded-xl bg-muted/40 p-3">
                                                   <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                                                       <WalletCards className="size-3.5" />
-                                                      {t('apiKey.card.quota')}
+                                                      当前余额
                                                   </div>
                                                   {hasQuotaLimit ? (
                                                       <>
                                                           <div className="text-sm font-semibold text-card-foreground">
-                                                              ${remainingQuota?.toFixed(2)} / ${apiKey.max_cost?.toFixed(2)}
+                                                              ${currentBalance?.toFixed(2)} / 已用 ${totalCostRaw.toFixed(2)}
                                                           </div>
                                                           <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
                                                               <div

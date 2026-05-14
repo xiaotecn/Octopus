@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/bestruirui/octopus/internal/model"
@@ -19,15 +20,12 @@ type RelayMetrics struct {
 	RequestModel string
 	StartTime    time.Time
 
-	// 首 Token 时间
 	FirstTokenTime time.Time
 
-	// 请求和响应内容
 	RawRequest       []byte
 	InternalRequest  *transformerModel.InternalLLMRequest
 	InternalResponse *transformerModel.InternalLLMResponse
 
-	// 统计指标
 	ActualModel       string
 	Stats             model.StatsMetrics
 	UsedWS            bool
@@ -77,7 +75,6 @@ func (m *RelayMetrics) SetWSRecovery(recovery model.RelayLogWSRecovery) {
 	m.WSRecovery = wsRecoveryPtr(recovery)
 }
 
-// SetSelectedChannel 记录此次命中的通道 ID，用于 SetInternalResponse 时按站点 (账号, 分组) 查询价格。
 func (m *RelayMetrics) SetSelectedChannel(channelID int) {
 	m.SelectedChannelID = channelID
 }
@@ -132,6 +129,23 @@ func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attemp
 	op.StatsHourlyUpdate(globalStats)
 	op.StatsDailyUpdate(context.Background(), globalStats)
 	op.StatsAPIKeyUpdate(m.APIKeyID, globalStats)
+	if success {
+		totalCost := m.Stats.InputCost + m.Stats.OutputCost
+		if totalCost > 0 {
+			if apiKey, getErr := op.APIKeyGet(m.APIKeyID, ctx); getErr == nil {
+				if apiKey.MaxCost > 0 {
+					nextBalance := apiKey.MaxCost - totalCost
+					if nextBalance < 0 {
+						nextBalance = 0
+					}
+					apiKey.MaxCost = nextBalance
+					if updateErr := op.APIKeyUpdate(&apiKey, ctx); updateErr != nil {
+						log.Warnf("failed to decrement api key balance: %v", updateErr)
+					}
+				}
+			}
+		}
+	}
 	op.StatsChannelUpdate(channelID, globalStats)
 	op.StatsSiteModelHourlyRecordAttempts(attempts, m.ActualModel)
 
@@ -182,12 +196,10 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 		relayLog.RequestAPIKeyName = apiKey.Name
 	}
 
-	// 首字时间
 	if !m.FirstTokenTime.IsZero() {
 		relayLog.Ftut = int(m.FirstTokenTime.Sub(m.StartTime).Milliseconds())
 	}
 
-	// Usage
 	if m.InternalResponse != nil && m.InternalResponse.Usage != nil {
 		relayLog.InputTokens = int(m.InternalResponse.Usage.PromptTokens)
 		relayLog.OutputTokens = int(m.InternalResponse.Usage.CompletionTokens)
@@ -200,7 +212,6 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	relayLog.WSMode = m.WSMode
 	relayLog.WSRecovery = m.WSRecovery
 
-	// 请求内容：优先原始请求体，保留 provider 专有字段（如 Anthropic cache_control）
 	if len(m.RawRequest) > 0 {
 		relayLog.RequestContent = string(m.RawRequest)
 	} else if m.InternalRequest != nil {
@@ -209,7 +220,6 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 		}
 	}
 
-	// 响应内容
 	if m.InternalResponse != nil {
 		respForLog := m.filterResponseForLog(m.InternalResponse)
 		if respJSON, jsonErr := json.Marshal(respForLog); jsonErr == nil {
@@ -217,7 +227,6 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 		}
 	}
 
-	// 错误信息
 	if err != nil {
 		relayLog.Error = err.Error()
 	}
@@ -231,9 +240,22 @@ func intPtr(value int) *int {
 	return &value
 }
 
-// resolveModelPrice 优先从站点 (账号, 分组) 维度查价；缺失时回退到 models.dev 全局价格。
-// 保证与原 price.GetLLMPrice 相同的签名（*model.LLMPrice），不改变调用方计费数学。
+func resolveConfiguredModelPrice(modelName string) *model.LLMPrice {
+	normalized := strings.ToLower(strings.TrimSpace(modelName))
+	if normalized == "" {
+		return nil
+	}
+	configured, err := op.LLMGet(normalized)
+	if err != nil {
+		return nil
+	}
+	return &configured
+}
+
 func resolveModelPrice(channelID int, actualModel string) *model.LLMPrice {
+	if configured := resolveConfiguredModelPrice(actualModel); configured != nil {
+		return configured
+	}
 	if channelID > 0 {
 		binding, err := op.SiteChannelBindingGetByChannelID(channelID, context.Background())
 		if err == nil && binding != nil {
@@ -255,7 +277,6 @@ func wsRecoveryPtr(value model.RelayLogWSRecovery) *model.RelayLogWSRecovery {
 	return &value
 }
 
-// filterResponseForLog 创建响应的浅拷贝，过滤掉 images、MultipleContent 中的图片数据和 Audio.Data 以减少存储压力
 func (m *RelayMetrics) filterResponseForLog(resp *transformerModel.InternalLLMResponse) *transformerModel.InternalLLMResponse {
 	if resp == nil {
 		return nil

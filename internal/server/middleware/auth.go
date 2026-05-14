@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bestruirui/octopus/internal/conf"
@@ -11,6 +12,15 @@ import (
 	"github.com/bestruirui/octopus/internal/server/resp"
 	"github.com/gin-gonic/gin"
 )
+
+var apiKeyBalanceLocks sync.Map
+
+func acquireAPIKeyBalanceLock(apiKeyID int) func() {
+	lockValue, _ := apiKeyBalanceLocks.LoadOrStore(apiKeyID, &sync.Mutex{})
+	lock := lockValue.(*sync.Mutex)
+	lock.Lock()
+	return lock.Unlock
+}
 
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -59,6 +69,18 @@ func APIKeyAuth() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		var unlock func()
+		if apiKeyObj.MaxCost >= 0 {
+			unlock = acquireAPIKeyBalanceLock(apiKeyObj.ID)
+			defer unlock()
+
+			apiKeyObj, err = op.APIKeyGet(apiKeyObj.ID, c.Request.Context())
+			if err != nil {
+				resp.Error(c, http.StatusUnauthorized, resp.ErrUnauthorized)
+				c.Abort()
+				return
+			}
+		}
 		if !apiKeyObj.Enabled {
 			resp.Error(c, http.StatusUnauthorized, "API key is disabled")
 			c.Abort()
@@ -69,9 +91,8 @@ func APIKeyAuth() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		statsAPIKey := op.StatsAPIKeyGet(apiKeyObj.ID)
-		if apiKeyObj.MaxCost > 0 && apiKeyObj.MaxCost < statsAPIKey.StatsMetrics.OutputCost+statsAPIKey.StatsMetrics.InputCost {
-			resp.Error(c, http.StatusUnauthorized, "API key has reached the max cost")
+		if apiKeyObj.MaxCost == 0 {
+			resp.Error(c, http.StatusUnauthorized, "API key has no remaining balance")
 			c.Abort()
 			return
 		}
