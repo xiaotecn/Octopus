@@ -92,47 +92,127 @@ export default function RootLayout({
                 opacity: 0;
                 pointer-events: none;
               }
-              #initial-loader svg {
-                width: 120px;
-                height: 120px;
+              #initial-loader .octo-loader-mark {
+                position: relative;
+                width: 132px;
+                height: 132px;
+                display: grid;
+                place-items: center;
               }
-              #initial-loader .octo-group {
-                animation: octoFade 2s ease-in-out infinite;
+              #initial-loader .octo-loader-core {
+                position: relative;
+                z-index: 3;
+                width: 18px;
+                height: 18px;
+                border-radius: 999px;
+                background:
+                  radial-gradient(circle at 35% 35%, hsl(var(--background)) 0 18%, transparent 19%),
+                  radial-gradient(circle, currentColor 0 62%, color-mix(in srgb, currentColor 42%, transparent) 63% 100%);
+                box-shadow:
+                  0 0 0 10px color-mix(in srgb, currentColor 12%, transparent),
+                  0 0 26px color-mix(in srgb, currentColor 28%, transparent);
+                animation: octoPulse 1.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
               }
-              #initial-loader path {
-                fill: none;
-                stroke: currentColor;
-                stroke-width: 6;
-                stroke-linecap: round;
-                stroke-dasharray: 1;
-                stroke-dashoffset: 1;
+              #initial-loader .octo-loader-ring {
+                position: absolute;
+                inset: 0;
+                border-radius: 999px;
+                border: 1.5px solid color-mix(in srgb, currentColor 26%, transparent);
                 opacity: 0;
-                animation: octoDraw 2s ease-in-out infinite both;
+                transform: scale(0.38);
+                animation: octoRipple 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
               }
-              #initial-loader path:nth-child(1) { animation-delay: 0s; }
-              #initial-loader path:nth-child(2) { animation-delay: 0.15s; }
-              #initial-loader path:nth-child(3) { animation-delay: 0.30s; }
-              #initial-loader path:nth-child(4) { animation-delay: 0.45s; }
-              #initial-loader path:nth-child(5) { animation-delay: 0.60s; }
+              #initial-loader .octo-loader-ring::after {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 12px;
+                height: 12px;
+                margin-top: -6px;
+                margin-left: -6px;
+                border-radius: 999px;
+                background: currentColor;
+                box-shadow: 0 0 18px color-mix(in srgb, currentColor 34%, transparent);
+                transform-origin: 0 0;
+                animation: octoOrbit 2.4s linear infinite;
+              }
+              #initial-loader .octo-loader-ring-a {
+                animation-delay: 0s;
+              }
+              #initial-loader .octo-loader-ring-a::after {
+                animation-delay: 0s;
+              }
+              #initial-loader .octo-loader-ring-b {
+                animation-delay: 0.8s;
+              }
+              #initial-loader .octo-loader-ring-b::after {
+                animation-delay: 0.8s;
+              }
+              #initial-loader .octo-loader-ring-c {
+                animation-delay: 1.6s;
+              }
+              #initial-loader .octo-loader-ring-c::after {
+                animation-delay: 1.6s;
+              }
+              #initial-loader .octo-loader-glow {
+                position: absolute;
+                inset: 24px;
+                border-radius: 999px;
+                background: radial-gradient(circle, color-mix(in srgb, currentColor 18%, transparent) 0, transparent 72%);
+                filter: blur(10px);
+                opacity: 0.75;
+                animation: octoGlow 2.4s ease-in-out infinite;
+              }
 
-              @keyframes octoDraw {
-                0%   { stroke-dashoffset: 1; opacity: 0; }
-                5%   { opacity: 1; }
-                40%  { stroke-dashoffset: 0; opacity: 1; }
-                100% { stroke-dashoffset: 0; opacity: 1; }
+              @keyframes octoPulse {
+                0%, 100% {
+                  transform: scale(0.92);
+                }
+                50% {
+                  transform: scale(1.14);
+                }
               }
-              @keyframes octoFade {
-                0%   { opacity: 1; }
-                70%  { opacity: 1; }
-                100% { opacity: 0; }
+              @keyframes octoRipple {
+                0% {
+                  opacity: 0;
+                  transform: scale(0.38);
+                }
+                18% {
+                  opacity: 0.9;
+                }
+                100% {
+                  opacity: 0;
+                  transform: scale(1);
+                }
+              }
+              @keyframes octoOrbit {
+                0% {
+                  transform: rotate(0deg) translateX(58px);
+                }
+                100% {
+                  transform: rotate(360deg) translateX(58px);
+                }
+              }
+              @keyframes octoGlow {
+                0%, 100% {
+                  transform: scale(0.92);
+                  opacity: 0.45;
+                }
+                50% {
+                  transform: scale(1.08);
+                  opacity: 0.82;
+                }
               }
 
               @media (prefers-reduced-motion: reduce) {
-                #initial-loader .octo-group,
-                #initial-loader path {
+                #initial-loader .octo-loader-core,
+                #initial-loader .octo-loader-ring,
+                #initial-loader .octo-loader-ring::after,
+                #initial-loader .octo-loader-glow {
                   animation: none !important;
                   opacity: 1 !important;
-                  stroke-dashoffset: 0 !important;
+                  transform: none !important;
                 }
               }
             `,
@@ -141,15 +221,13 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <div id="initial-loader" role="status" aria-label="Loading">
-          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <g className="octo-group">
-              <path pathLength="1" d="M50 15 C70 15 85 30 85 50 C85 65 75 75 70 80 M50 15 C30 15 15 30 15 50 C15 65 25 75 30 80" />
-              <path pathLength="1" d="M30 80 Q30 90 20 90" />
-              <path pathLength="1" d="M43 77 Q43 90 38 90" />
-              <path pathLength="1" d="M57 77 Q57 90 62 90" />
-              <path pathLength="1" d="M70 80 Q70 90 80 90" />
-            </g>
-          </svg>
+          <div className="octo-loader-mark" aria-hidden="true">
+            <span className="octo-loader-glow" />
+            <span className="octo-loader-ring octo-loader-ring-a" />
+            <span className="octo-loader-ring octo-loader-ring-b" />
+            <span className="octo-loader-ring octo-loader-ring-c" />
+            <span className="octo-loader-core" />
+          </div>
         </div>
         <ServiceWorkerRegister />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
