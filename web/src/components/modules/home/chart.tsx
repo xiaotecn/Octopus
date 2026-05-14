@@ -24,7 +24,7 @@ type HeroValue = {
     unit: string;
 };
 
-type ChartPoint = { date: string; total_cost: number };
+type ChartPoint = { date: string; total_token: number };
 
 const PERIOD_KEY: Record<ChartPeriod, 'today' | 'last7Days' | 'last30Days' | 'allTime'> = {
     '1': 'today',
@@ -63,7 +63,7 @@ export function StatsChart() {
         if (period === 'all') {
             const points: ChartPoint[] = sortedDaily.map((stat) => ({
                 date: dayjs(stat.date).format('MM/DD'),
-                total_cost: stat.total_cost.raw,
+                total_token: stat.total_token.raw,
             }));
 
             if (statsTotal) {
@@ -106,7 +106,7 @@ export function StatsChart() {
             }
             const points: ChartPoint[] = statsHourly.map((stat) => ({
                 date: `${stat.hour}:00`,
-                total_cost: stat.total_cost.raw,
+                total_token: stat.total_token.raw,
             }));
             const cost = statsHourly.reduce((acc, s) => acc + s.total_cost.raw, 0);
             const requests = statsHourly.reduce((acc, s) => acc + s.request_count.raw, 0);
@@ -127,7 +127,7 @@ export function StatsChart() {
         const recent = sortedDaily.slice(-days);
         const points: ChartPoint[] = recent.map((stat) => ({
             date: dayjs(stat.date).format('MM/DD'),
-            total_cost: stat.total_cost.raw,
+            total_token: stat.total_token.raw,
         }));
 
         if (recent.length === 0) {
@@ -151,9 +151,9 @@ export function StatsChart() {
 
     const chartConfig = useMemo(
         () => ({
-            total_cost: { label: t('metrics.cost') },
+            total_token: { label: t(`headline.${PERIOD_KEY[period]}`) },
         }),
-        [t]
+        [t, period]
     );
 
     return (
@@ -206,14 +206,14 @@ export function StatsChart() {
                         tickLine={false}
                         axisLine={false}
                         tickFormatter={(value) => {
-                            const formatted = formatMoney(value);
+                            const formatted = formatCount(value);
                             return `${formatted.formatted.value}${formatted.formatted.unit}`;
                         }}
                     />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
                     <Area
                         type="monotone"
-                        dataKey="total_cost"
+                        dataKey="total_token"
                         stroke="var(--chart-1)"
                         fill="url(#fillCost)"
                     />
