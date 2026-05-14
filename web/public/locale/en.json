@@ -109,22 +109,22 @@
                 "allTime": "All time"
             },
             "headline": {
-                "today": "Today's cost",
-                "last7Days": "Last 7 days",
-                "last30Days": "Last 30 days",
-                "allTime": "Total cost"
+                "today": "Today's tokens",
+                "last7Days": "Last 7 days tokens",
+                "last30Days": "Last 30 days tokens",
+                "allTime": "Total tokens"
             },
             "metrics": {
                 "requests": "Requests",
-                "tokens": "Tokens",
+                "cost": "Today's cost",
                 "waitTime": "Latency"
             }
         },
         "rank": {
             "title": "Ranking",
-            "sortByCost": "Cost",
+            "sortByCost": "Tokens",
             "sortByCount": "Count",
-            "sortByTokens": "Tokens",
+            "sortByTokens": "Cost",
             "noData": "No ranking data",
             "successRate": "Success Rate"
         }

@@ -15,7 +15,7 @@ type Formatted = { value: string; unit: string };
 
 type MetricsRow = {
     requests: Formatted;
-    tokens: Formatted;
+    cost: Formatted;
     waitTime: Formatted;
 };
 
@@ -55,13 +55,12 @@ export function StatsChart() {
     }>(() => {
         const emptyMetrics: MetricsRow = {
             requests: formatCount(0).formatted,
-            tokens: formatCount(0).formatted,
+            cost: formatMoney(0).formatted,
             waitTime: formatTime(0).formatted,
         };
         const emptyHero: HeroValue = { value: undefined, unit: '' };
 
         if (period === 'all') {
-            // 累计档：优先使用 statsTotal；否则 fallback 到 statsDaily 全量聚合
             const points: ChartPoint[] = sortedDaily.map((stat) => ({
                 date: dayjs(stat.date).format('MM/DD'),
                 total_cost: stat.total_cost.raw,
@@ -70,12 +69,12 @@ export function StatsChart() {
             if (statsTotal) {
                 return {
                     hero: {
-                        value: statsTotal.total_cost.formatted.value,
-                        unit: statsTotal.total_cost.formatted.unit,
+                        value: statsTotal.total_token.formatted.value,
+                        unit: statsTotal.total_token.formatted.unit,
                     },
                     metrics: {
                         requests: statsTotal.request_count.formatted,
-                        tokens: statsTotal.total_token.formatted,
+                        cost: statsTotal.total_cost.formatted,
                         waitTime: statsTotal.wait_time.formatted,
                     },
                     chartData: points,
@@ -90,12 +89,11 @@ export function StatsChart() {
             const requests = sortedDaily.reduce((acc, s) => acc + s.request_count.raw, 0);
             const tokens = sortedDaily.reduce((acc, s) => acc + s.total_token.raw, 0);
             const wait = sortedDaily.reduce((acc, s) => acc + s.wait_time.raw, 0);
-            const costFmt = formatMoney(cost).formatted;
             return {
-                hero: { value: costFmt.value, unit: costFmt.unit },
+                hero: formatCount(tokens).formatted,
                 metrics: {
                     requests: formatCount(requests).formatted,
-                    tokens: formatCount(tokens).formatted,
+                    cost: formatMoney(cost).formatted,
                     waitTime: formatTime(wait).formatted,
                 },
                 chartData: points,
@@ -103,7 +101,6 @@ export function StatsChart() {
         }
 
         if (period === '1') {
-            // 今日档：聚合 statsHourly
             if (!statsHourly) {
                 return { hero: emptyHero, metrics: emptyMetrics, chartData: [] };
             }
@@ -115,19 +112,17 @@ export function StatsChart() {
             const requests = statsHourly.reduce((acc, s) => acc + s.request_count.raw, 0);
             const tokens = statsHourly.reduce((acc, s) => acc + s.total_token.raw, 0);
             const wait = statsHourly.reduce((acc, s) => acc + s.wait_time.raw, 0);
-            const costFmt = formatMoney(cost).formatted;
             return {
-                hero: { value: costFmt.value, unit: costFmt.unit },
+                hero: formatCount(tokens).formatted,
                 metrics: {
                     requests: formatCount(requests).formatted,
-                    tokens: formatCount(tokens).formatted,
+                    cost: formatMoney(cost).formatted,
                     waitTime: formatTime(wait).formatted,
                 },
                 chartData: points,
             };
         }
 
-        // 7 / 30 天：聚合 statsDaily
         const days = Number(period);
         const recent = sortedDaily.slice(-days);
         const points: ChartPoint[] = recent.map((stat) => ({
@@ -143,12 +138,11 @@ export function StatsChart() {
         const requests = recent.reduce((acc, s) => acc + s.request_count.raw, 0);
         const tokens = recent.reduce((acc, s) => acc + s.total_token.raw, 0);
         const wait = recent.reduce((acc, s) => acc + s.wait_time.raw, 0);
-        const costFmt = formatMoney(cost).formatted;
         return {
-            hero: { value: costFmt.value, unit: costFmt.unit },
+            hero: formatCount(tokens).formatted,
             metrics: {
                 requests: formatCount(requests).formatted,
-                tokens: formatCount(tokens).formatted,
+                cost: formatMoney(cost).formatted,
                 waitTime: formatTime(wait).formatted,
             },
             chartData: points,
@@ -157,35 +151,24 @@ export function StatsChart() {
 
     const chartConfig = useMemo(
         () => ({
-            total_cost: { label: t('headline.allTime') },
+            total_cost: { label: t('metrics.cost') },
         }),
         [t]
     );
 
-    // hero unit 处理：formatMoney 返回 unit 形如 '$' / 'K$' / 'M$' / 'B$'
-    // 展示时 $ 前置、其余单位（K/M/B）后置。
-    const heroUnitSuffix = useMemo(() => {
-        if (!hero.unit) return '';
-        // 去掉结尾 $ 留下数量级字符
-        if (hero.unit === '$') return '';
-        return hero.unit.replace(/\$$/, '');
-    }, [hero.unit]);
-
     return (
         <section className="rounded-3xl bg-card border-card-border border text-card-foreground custom-shadow">
-            {/* Header: hero + tabs */}
             <header className="px-5 pt-5 pb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
                     <p className="text-xs text-muted-foreground">{t(`headline.${PERIOD_KEY[period]}`)}</p>
                     <p className="mt-1 text-4xl md:text-5xl font-semibold tabular-nums tracking-tight">
                         {hero.value === undefined ? (
-                            <span className="text-muted-foreground">—</span>
+                            <span className="text-muted-foreground">-</span>
                         ) : (
                             <>
-                                <span className="text-muted-foreground text-2xl mr-1">$</span>
                                 <AnimatedNumber value={hero.value} />
-                                {heroUnitSuffix && (
-                                    <span className="ml-1 text-xl text-muted-foreground">{heroUnitSuffix}</span>
+                                {hero.unit && (
+                                    <span className="ml-1 text-xl text-muted-foreground">{hero.unit}</span>
                                 )}
                             </>
                         )}
@@ -201,16 +184,14 @@ export function StatsChart() {
                 </Tabs>
             </header>
 
-            {/* Metrics row */}
             <div className="mx-5 flex items-baseline gap-6 border-t border-border/60 py-3 text-sm tabular-nums">
                 <StatItem label={t('metrics.requests')} value={metrics.requests} />
                 <span className="h-4 w-px bg-border/60" />
-                <StatItem label={t('metrics.tokens')} value={metrics.tokens} />
+                <StatItem label={t('metrics.cost')} value={metrics.cost} />
                 <span className="h-4 w-px bg-border/60" />
                 <StatItem label={t('metrics.waitTime')} value={metrics.waitTime} />
             </div>
 
-            {/* Area chart — only total_cost */}
             <ChartContainer config={chartConfig} className="h-40 w-full">
                 <AreaChart accessibilityLayer data={chartData}>
                     <defs>
@@ -255,7 +236,7 @@ function StatItem({ label, value }: { label: string; value: Formatted | undefine
                         )}
                     </>
                 ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">-</span>
                 )}
             </span>
         </div>

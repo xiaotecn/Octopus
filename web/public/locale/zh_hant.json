@@ -109,22 +109,22 @@
                 "allTime": "累計"
             },
             "headline": {
-                "today": "今日花費",
-                "last7Days": "近 7 天花費",
-                "last30Days": "近 30 天花費",
-                "allTime": "累計總花費"
+                "today": "今日 Token",
+                "last7Days": "近 7 天 Token",
+                "last30Days": "近 30 天 Token",
+                "allTime": "累計總 Token"
             },
             "metrics": {
                 "requests": "請求",
-                "tokens": "Token",
+                "cost": "今日花費",
                 "waitTime": "耗時"
             }
         },
         "rank": {
             "title": "排行榜",
-            "sortByCost": "金額",
+            "sortByCost": "Token",
             "sortByCount": "次數",
-            "sortByTokens": "Tokens",
+            "sortByTokens": "金額",
             "noData": "暫無排行數據",
             "successRate": "成功率"
         }

@@ -16,7 +16,7 @@ interface HomeViewState {
 export const useHomeViewStore = create<HomeViewState>()(
     persist(
         (set) => ({
-            rankSortMode: 'cost',
+            rankSortMode: 'tokens',
             chartPeriod: '7',
             setRankSortMode: (value) => set({ rankSortMode: value }),
             setChartPeriod: (value) => set({ chartPeriod: value }),

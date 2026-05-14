@@ -23,9 +23,9 @@ export function Rank() {
     const rankSortMode = useHomeViewStore((state) => state.rankSortMode);
     const setRankSortMode = useHomeViewStore((state) => state.setRankSortMode);
 
-    const rankedByCost = useMemo<ChannelData[]>(() => {
+    const rankedByTokens = useMemo<ChannelData[]>(() => {
         if (!channelData) return [];
-        return [...channelData].sort((a, b) => b.formatted.total_cost.raw - a.formatted.total_cost.raw);
+        return [...channelData].sort((a, b) => b.formatted.total_token.raw - a.formatted.total_token.raw);
     }, [channelData]);
 
     const rankedByCount = useMemo<ChannelData[]>(() => {
@@ -33,9 +33,9 @@ export function Rank() {
         return [...channelData].sort((a, b) => b.formatted.request_count.raw - a.formatted.request_count.raw);
     }, [channelData]);
 
-    const rankedByTokens = useMemo<ChannelData[]>(() => {
+    const rankedByCost = useMemo<ChannelData[]>(() => {
         if (!channelData) return [];
-        return [...channelData].sort((a, b) => b.formatted.total_token.raw - a.formatted.total_token.raw);
+        return [...channelData].sort((a, b) => b.formatted.total_cost.raw - a.formatted.total_cost.raw);
     }, [channelData]);
 
     const getMedalEmoji = (rank: number): string => {
@@ -108,16 +108,16 @@ export function Rank() {
                                     </div>
                                 ) : mode === 'tokens' ? (
                                     <span className="font-semibold text-base">
-                                        {channel.formatted.total_token.formatted.value}
+                                        {channel.formatted.total_cost.formatted.value}
                                         <span className="text-xs text-muted-foreground">
-                                            {channel.formatted.total_token.formatted.unit}
+                                            {channel.formatted.total_cost.formatted.unit}
                                         </span>
                                     </span>
                                 ) : (
                                     <span className="font-semibold text-base">
-                                        {channel.formatted.total_cost.formatted.value}
+                                        {channel.formatted.total_token.formatted.value}
                                         <span className="text-xs text-muted-foreground">
-                                            {channel.formatted.total_cost.formatted.unit}
+                                            {channel.formatted.total_token.formatted.unit}
                                         </span>
                                     </span>
                                 )}
@@ -142,13 +142,13 @@ export function Rank() {
                 </div>
                 <TabsContents>
                     <TabsContent value="cost">
-                        {renderList(rankedByCost, 'cost')}
+                        {renderList(rankedByTokens, 'cost')}
                     </TabsContent>
                     <TabsContent value="count">
                         {renderList(rankedByCount, 'count')}
                     </TabsContent>
                     <TabsContent value="tokens">
-                        {renderList(rankedByTokens, 'tokens')}
+                        {renderList(rankedByCost, 'tokens')}
                     </TabsContent>
                 </TabsContents>
             </Tabs>

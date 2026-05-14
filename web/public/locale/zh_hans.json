@@ -109,22 +109,22 @@
                 "allTime": "累计"
             },
             "headline": {
-                "today": "今日花费",
-                "last7Days": "近 7 天花费",
-                "last30Days": "近 30 天花费",
-                "allTime": "累计总花费"
+                "today": "今日 Token",
+                "last7Days": "近 7 天 Token",
+                "last30Days": "近 30 天 Token",
+                "allTime": "累计总 Token"
             },
             "metrics": {
                 "requests": "请求",
-                "tokens": "Token",
+                "cost": "今日花费",
                 "waitTime": "耗时"
             }
         },
         "rank": {
             "title": "排行榜",
-            "sortByCost": "金额",
+            "sortByCost": "Token",
             "sortByCount": "次数",
-            "sortByTokens": "Tokens",
+            "sortByTokens": "金额",
             "noData": "暂无排行数据",
             "successRate": "成功率"
         }

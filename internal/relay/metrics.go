@@ -129,19 +129,17 @@ func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attemp
 	op.StatsHourlyUpdate(globalStats)
 	op.StatsDailyUpdate(context.Background(), globalStats)
 	op.StatsAPIKeyUpdate(m.APIKeyID, globalStats)
-	if success {
-		totalCost := m.Stats.InputCost + m.Stats.OutputCost
-		if totalCost > 0 {
-			if apiKey, getErr := op.APIKeyGet(m.APIKeyID, ctx); getErr == nil {
-				if apiKey.MaxCost > 0 {
-					nextBalance := apiKey.MaxCost - totalCost
-					if nextBalance < 0 {
-						nextBalance = 0
-					}
-					apiKey.MaxCost = nextBalance
-					if updateErr := op.APIKeyUpdate(&apiKey, ctx); updateErr != nil {
-						log.Warnf("failed to decrement api key balance: %v", updateErr)
-					}
+	totalCost := m.Stats.InputCost + m.Stats.OutputCost
+	if totalCost > 0 {
+		if apiKey, getErr := op.APIKeyGet(m.APIKeyID, ctx); getErr == nil {
+			if apiKey.MaxCost > 0 {
+				nextBalance := apiKey.MaxCost - totalCost
+				if nextBalance < 0 {
+					nextBalance = 0
+				}
+				apiKey.MaxCost = nextBalance
+				if updateErr := op.APIKeyUpdate(&apiKey, ctx); updateErr != nil {
+					log.Warnf("failed to decrement api key balance: %v", updateErr)
 				}
 			}
 		}
