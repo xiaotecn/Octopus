@@ -69,7 +69,7 @@ export function BrandingSync() {
             manifestUrlRef.current = null;
         }
         const manifestBlob = new Blob(
-            [JSON.stringify(buildBrandingManifest(branding.siteTitle, branding.siteLogoDataURL))],
+            [JSON.stringify(buildBrandingManifest(branding.siteTitle, branding.siteLogoDataURL, window.location.origin))],
             { type: 'application/manifest+json' },
         );
         const manifestUrl = URL.createObjectURL(manifestBlob);
