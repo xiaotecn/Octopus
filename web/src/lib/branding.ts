@@ -40,6 +40,10 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
     const trimmedLogo = siteLogoDataURL.trim();
     const iconTypeMatch = trimmedLogo.match(/^data:(image\/[^;]+);/i);
     const iconType = iconTypeMatch?.[1] || 'image/png';
+    const fallbackIcon192 = './web-app-manifest-192x192.png';
+    const fallbackIcon512 = './web-app-manifest-512x512.png';
+    const iconSrc = trimmedLogo || fallbackIcon512;
+    const shortcutIconSrc = trimmedLogo || fallbackIcon192;
 
     return {
         name: trimmedTitle,
@@ -48,25 +52,100 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
         id: './',
         start_url: './',
         scope: './',
+        lang: 'zh-CN',
+        dir: 'ltr',
         display: 'standalone',
         orientation: 'any',
         theme_color: DEFAULT_THEME_COLOR,
         background_color: DEFAULT_BACKGROUND_COLOR,
-        icons: trimmedLogo
-            ? [
-                {
-                    src: trimmedLogo,
-                    sizes: '512x512',
-                    type: iconType,
-                    purpose: 'any',
-                },
-                {
-                    src: trimmedLogo,
-                    sizes: '512x512',
-                    type: iconType,
-                    purpose: 'maskable',
-                },
-            ]
-            : [],
+        categories: ['utilities', 'productivity', 'developer tools'],
+        icons: [
+            {
+                src: trimmedLogo || fallbackIcon192,
+                sizes: '192x192',
+                type: trimmedLogo ? iconType : 'image/png',
+                purpose: 'any',
+            },
+            {
+                src: iconSrc,
+                sizes: '512x512',
+                type: trimmedLogo ? iconType : 'image/png',
+                purpose: 'any',
+            },
+            {
+                src: iconSrc,
+                sizes: '512x512',
+                type: trimmedLogo ? iconType : 'image/png',
+                purpose: 'maskable',
+            },
+        ],
+        screenshots: [
+            {
+                src: './screenshot/desktop-home.png',
+                sizes: '1437x918',
+                type: 'image/png',
+                form_factor: 'wide',
+                label: '首页仪表盘',
+            },
+            {
+                src: './screenshot/desktop-channel.png',
+                sizes: '1437x918',
+                type: 'image/png',
+                form_factor: 'wide',
+                label: '渠道管理',
+            },
+            {
+                src: './screenshot/mobile-home.png',
+                sizes: '1290x2796',
+                type: 'image/png',
+                form_factor: 'narrow',
+                label: '移动端首页',
+            },
+            {
+                src: './screenshot/mobile-channel.png',
+                sizes: '1290x2796',
+                type: 'image/png',
+                form_factor: 'narrow',
+                label: '移动端渠道',
+            },
+        ],
+        shortcuts: [
+            {
+                name: '渠道管理',
+                short_name: '渠道',
+                url: './',
+                icons: [
+                    {
+                        src: shortcutIconSrc,
+                        sizes: '192x192',
+                        type: trimmedLogo ? iconType : 'image/png',
+                    },
+                ],
+            },
+            {
+                name: '模型价格管理',
+                short_name: '价格',
+                url: './',
+                icons: [
+                    {
+                        src: shortcutIconSrc,
+                        sizes: '192x192',
+                        type: trimmedLogo ? iconType : 'image/png',
+                    },
+                ],
+            },
+            {
+                name: '分组管理',
+                short_name: '分组',
+                url: './',
+                icons: [
+                    {
+                        src: shortcutIconSrc,
+                        sizes: '192x192',
+                        type: trimmedLogo ? iconType : 'image/png',
+                    },
+                ],
+            },
+        ],
     };
 }
