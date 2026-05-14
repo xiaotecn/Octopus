@@ -9,7 +9,7 @@ import { APIKeyDashboard } from '@/components/modules/apikey-dashboard';
 import { ContentLoader } from '@/route/content-loader';
 import { NavBar, useNavStore } from '@/components/modules/navbar';
 import { useTranslations } from 'next-intl'
-import Logo, { LOGO_DRAW_END_MS } from '@/components/modules/logo';
+import { LOGO_DRAW_END_MS } from '@/components/modules/logo';
 import BrandLogo from '@/components/modules/logo/brand-logo';
 import { Toolbar } from '@/components/modules/toolbar';
 import { ChannelTabSwitcher, ChannelHeaderActions } from '@/components/modules/channel/TabSwitcher';
@@ -20,6 +20,7 @@ import { apiClient } from '@/api/client';
 import { logger } from '@/lib/logger';
 import { useBranding } from '@/api/endpoints/setting';
 import { buildBranding } from '@/lib/branding';
+import { RadarLoader } from '@/components/common/radar-loader';
 
 const RETURNING_USER_KEY = 'octopus_visited';
 const RETURNING_LOGO_MS = 300;
@@ -179,7 +180,7 @@ export function AppContainer() {
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
-                <Logo size={120} animate />
+                <RadarLoader size={120} />
             </div>
         );
     }

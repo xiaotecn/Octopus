@@ -11,11 +11,26 @@ function updateMetaContent(name: string, content: string) {
     }
 }
 
-function updateLinkHref(rel: string, href: string) {
-    const element = document.querySelector(`link[rel="${rel}"]`);
-    if (element) {
-        element.setAttribute('href', href);
+function ensureLink(rel: string) {
+    let element = document.head.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
+    if (!element) {
+        element = document.createElement('link');
+        element.setAttribute('rel', rel);
+        document.head.appendChild(element);
     }
+    return element;
+}
+
+function syncFavicons(href: string, appleHref: string) {
+    const icon = ensureLink('icon');
+    icon.setAttribute('href', href);
+    icon.setAttribute('sizes', 'any');
+
+    const shortcutIcon = ensureLink('shortcut icon');
+    shortcutIcon.setAttribute('href', href);
+
+    const appleTouchIcon = ensureLink('apple-touch-icon');
+    appleTouchIcon.setAttribute('href', appleHref);
 }
 
 export function BrandingSync() {
@@ -34,8 +49,7 @@ export function BrandingSync() {
 
         const iconHref = branding.siteLogoDataURL || DEFAULT_FAVICON_PATH;
         const appleIconHref = branding.siteLogoDataURL || DEFAULT_APPLE_ICON_PATH;
-        updateLinkHref('icon', iconHref);
-        updateLinkHref('apple-touch-icon', appleIconHref);
+        syncFavicons(iconHref, appleIconHref);
 
         try {
             const payload = JSON.stringify(toBrandingCacheValue(branding));

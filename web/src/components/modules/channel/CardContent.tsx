@@ -63,8 +63,17 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
         match_regex: channel.match_regex ?? '',
     });
     const t = useTranslations('channel.detail');
+    const tForm = useTranslations('channel.form');
 
     const currentView = isEditing ? 'editing' : 'viewing';
+    const autoModels = channel.model
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    const customModels = channel.custom_model
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
 
     const baseUrlsEqual = (a: Channel['base_urls'] | undefined, b: Channel['base_urls'] | undefined) =>
         JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
@@ -368,6 +377,31 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
                                             </dd>
                                         </div>
                                     </dl>
+                                </section>
+
+                                <section className="space-y-3">
+                                    <h4 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                        <FileText className="size-3.5" />
+                                        {tForm('model')}
+                                    </h4>
+                                    <div className="rounded-2xl border bg-card p-3 sm:p-4">
+                                        {autoModels.length > 0 || customModels.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {autoModels.map((model) => (
+                                                    <Badge key={`auto-${model}`} variant="secondary" className="bg-muted hover:bg-muted">
+                                                        {model}
+                                                    </Badge>
+                                                ))}
+                                                {customModels.map((model) => (
+                                                    <Badge key={`custom-${model}`} className="bg-primary hover:bg-primary/90">
+                                                        {model}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-sm text-muted-foreground">{tForm('modelNoSelected')}</div>
+                                        )}
+                                    </div>
                                 </section>
 
                                 {/* Base URLs */}

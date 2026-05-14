@@ -28,9 +28,25 @@ export default function RootLayout({
         const element = document.querySelector('meta[name="' + name + '"]');
         if (element) element.setAttribute('content', content);
       };
-      const setLinkHref = (rel, href) => {
-        const element = document.querySelector('link[rel="' + rel + '"]');
-        if (element) element.setAttribute('href', href);
+      const ensureLink = (rel) => {
+        let element = document.head.querySelector('link[rel="' + rel + '"]');
+        if (!element) {
+          element = document.createElement('link');
+          element.setAttribute('rel', rel);
+          document.head.appendChild(element);
+        }
+        return element;
+      };
+      const syncFavicons = (href, appleHref) => {
+        const icon = ensureLink('icon');
+        icon.setAttribute('href', href);
+        icon.setAttribute('sizes', 'any');
+
+        const shortcutIcon = ensureLink('shortcut icon');
+        shortcutIcon.setAttribute('href', href);
+
+        const appleTouchIcon = ensureLink('apple-touch-icon');
+        appleTouchIcon.setAttribute('href', appleHref);
       };
 
       try {
@@ -48,8 +64,7 @@ export default function RootLayout({
         setMetaContent('apple-mobile-web-app-title', siteTitle);
         setMetaContent('mobile-web-app-title', siteTitle);
 
-        setLinkHref('icon', siteLogoDataURL || defaultFaviconPath);
-        setLinkHref('apple-touch-icon', siteLogoDataURL || defaultAppleIconPath);
+        syncFavicons(siteLogoDataURL || defaultFaviconPath, siteLogoDataURL || defaultAppleIconPath);
       } catch {}
     })();
   `;
@@ -67,6 +82,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-title" content={DEFAULT_SITE_TITLE} />
         <link rel="manifest" href="./manifest.json" />
         <link rel="icon" href={DEFAULT_FAVICON_PATH} sizes="any" />
+        <link rel="shortcut icon" href={DEFAULT_FAVICON_PATH} />
         <link rel="apple-touch-icon" href={DEFAULT_APPLE_ICON_PATH} />
         <title>{DEFAULT_SITE_TITLE}</title>
         <Script
