@@ -549,23 +549,6 @@ func expandExplicitGroupModelsToGroups(
 		groupKeys[groupKey] = struct{}{}
 	}
 
-	groupKeysWithTokens := make(map[string]struct{}, len(tokens))
-	for _, token := range tokens {
-		groupKey := model.NormalizeSiteGroupKey(token.GroupKey)
-		groupKeysWithTokens[groupKey] = struct{}{}
-	}
-
-	groupsWithoutTokens := make(map[string]struct{})
-	for groupKey := range groupKeys {
-		if _, ok := groupKeysWithTokens[groupKey]; ok {
-			continue
-		}
-		groupsWithoutTokens[groupKey] = struct{}{}
-	}
-	if len(groupsWithoutTokens) == 0 {
-		return items
-	}
-
 	expanded := make([]model.SiteModel, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
@@ -583,7 +566,7 @@ func expandExplicitGroupModelsToGroups(
 		}
 		for _, explicitGroupKey := range metadata.EnableGroups {
 			targetGroupKey := model.NormalizeSiteGroupKey(explicitGroupKey)
-			if _, ok := groupsWithoutTokens[targetGroupKey]; !ok {
+			if _, ok := groupKeys[targetGroupKey]; !ok {
 				continue
 			}
 			targetKey := targetGroupKey + "\x00" + modelName

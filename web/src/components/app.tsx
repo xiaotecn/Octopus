@@ -1,15 +1,13 @@
-
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from "motion/react"
+import { useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from '@/api/endpoints/user';
 import { LoginForm } from '@/components/modules/login';
 import { APIKeyDashboard } from '@/components/modules/apikey-dashboard';
 import { ContentLoader } from '@/route/content-loader';
 import { NavBar, useNavStore } from '@/components/modules/navbar';
-import { useTranslations } from 'next-intl'
-import { LOGO_DRAW_END_MS } from '@/components/modules/logo';
+import { useTranslations } from 'next-intl';
 import BrandLogo from '@/components/modules/logo/brand-logo';
 import { Toolbar } from '@/components/modules/toolbar';
 import { ChannelTabSwitcher, ChannelHeaderActions } from '@/components/modules/channel/TabSwitcher';
@@ -20,10 +18,6 @@ import { apiClient } from '@/api/client';
 import { logger } from '@/lib/logger';
 import { useBranding } from '@/api/endpoints/setting';
 import { buildBranding } from '@/lib/branding';
-import { RadarLoader } from '@/components/common/radar-loader';
-
-const RETURNING_USER_KEY = 'octopus_visited';
-const RETURNING_LOGO_MS = 300;
 
 export function AppContainer() {
     const { isAuthenticated, isAPIKeyAuth, isLoading: authLoading } = useAuth();
@@ -32,12 +26,8 @@ export function AppContainer() {
     const { activeItem, direction } = useNavStore();
     const t = useTranslations('navbar');
     const queryClient = useQueryClient();
-
-    // Logo 动画完成状态 — 回访用户缩短动画时间
-    const [logoAnimationComplete, setLogoAnimationComplete] = useState(false);
     const bootstrapStartedRef = useRef(false);
 
-    // 首屏最早的 server-rendered loader：一旦客户端开始渲染，就淡出移除
     useEffect(() => {
         const el = document.getElementById('initial-loader');
         if (!el) return;
@@ -48,17 +38,6 @@ export function AppContainer() {
     }, []);
 
     useEffect(() => {
-        const isReturning = sessionStorage.getItem(RETURNING_USER_KEY) === '1';
-        const duration = isReturning ? RETURNING_LOGO_MS : LOGO_DRAW_END_MS;
-        const timer = setTimeout(() => {
-            setLogoAnimationComplete(true);
-            sessionStorage.setItem(RETURNING_USER_KEY, '1');
-        }, duration);
-        return () => clearTimeout(timer);
-    }, []);
-
-    // 后台预取数据 — 不阻塞内容渲染，React Query 缓存就绪后自动触发组件重渲染
-    useEffect(() => {
         if (authLoading) return;
         if (!isAuthenticated) return;
 
@@ -67,7 +46,6 @@ export function AppContainer() {
 
         const prefetches: Array<Promise<unknown>> = [];
 
-        // API Key 认证模式：预取 dashboard stats
         if (isAPIKeyAuth) {
             prefetches.push(
                 queryClient.prefetchQuery({
@@ -76,7 +54,6 @@ export function AppContainer() {
                 })
             );
         } else {
-            // 普通用户认证模式：预取对应页面数据
             const component = CONTENT_MAP[activeItem];
             if (component?.preload) {
                 prefetches.push(component.preload());
@@ -166,26 +143,16 @@ export function AppContainer() {
             }
         }
 
-        // 后台静默运行，不阻塞渲染
         Promise.allSettled(prefetches).catch((e) => {
             logger.warn('bootstrap prefetch failed:', e);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authLoading, isAuthenticated]);
 
-    // 加载状态 — 仅等待认证和 Logo 动画，不再等待数据预取
-    const isLoading = authLoading || !logoAnimationComplete;
-
-    // 加载页面
-    if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <RadarLoader size={120} />
-            </div>
-        );
+    if (authLoading) {
+        return <div className="min-h-screen bg-background" />;
     }
 
-    // API Key 认证模式 - 显示 API Key Dashboard
     if (isAPIKeyAuth) {
         return (
             <AnimatePresence mode="wait">
@@ -194,7 +161,6 @@ export function AppContainer() {
         );
     }
 
-    // 登录页面
     if (!isAuthenticated) {
         return (
             <AnimatePresence mode="wait">
@@ -203,7 +169,6 @@ export function AppContainer() {
         );
     }
 
-    // 主界面
     return (
         <motion.div
             key="main-app"
@@ -226,18 +191,18 @@ export function AppContainer() {
                                     key={activeItem}
                                     custom={direction}
                                     variants={{
-                                        initial: (direction: number) => ({
-                                            y: 32 * direction,
-                                            opacity: 0
+                                        initial: (dir: number) => ({
+                                            y: 32 * dir,
+                                            opacity: 0,
                                         }),
                                         animate: {
                                             y: 0,
-                                            opacity: 1
+                                            opacity: 1,
                                         },
-                                        exit: (direction: number) => ({
-                                            y: -32 * direction,
-                                            opacity: 0
-                                        })
+                                        exit: (dir: number) => ({
+                                            y: -32 * dir,
+                                            opacity: 0,
+                                        }),
                                     }}
                                     initial="initial"
                                     animate="animate"
@@ -245,7 +210,7 @@ export function AppContainer() {
                                     transition={{ duration: 0.3 }}
                                     className="flex items-baseline gap-6"
                                 >
-                                    <span className="text-3xl font-bold mt-1">{t(activeItem)}</span>
+                                    <span className="mt-1 text-3xl font-bold">{t(activeItem)}</span>
                                     {activeItem === 'channel' && <ChannelTabSwitcher />}
                                 </motion.div>
                             </AnimatePresence>

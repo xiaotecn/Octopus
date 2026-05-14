@@ -1219,6 +1219,74 @@ func TestSyncManagementPlatformExpandsModelsToExplicitGroupsWithoutKey(t *testin
 	}
 }
 
+func TestSyncManagementPlatformExpandsModelsToExplicitGroupsWithKey(t *testing.T) {
+	platformUserID := 7788
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.URL.Path == "/api/token/":
+			_, _ = w.Write([]byte(`{"data":{"items":[
+				{"name":"default-key","key":"managed-key-default","group":"default","status":1},
+				{"name":"vip-key","key":"managed-key-vip","group":"vip","status":1}
+			]}}`))
+		case r.URL.Path == "/api/user/self/groups":
+			_, _ = w.Write([]byte(`{"data":[{"id":"default","name":"default"},{"id":"vip","name":"VIP"}]}`))
+		case r.URL.Path == "/v1/models":
+			switch r.Header.Get("Authorization") {
+			case "Bearer managed-key-default":
+				_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o-mini"}]}`))
+			case "Bearer managed-key-vip":
+				_, _ = w.Write([]byte(`{"data":[]}`))
+			default:
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+			}
+		case r.URL.Path == "/api/user/models":
+			_, _ = w.Write([]byte(`{"data":["gpt-4o-mini"]}`))
+		case r.URL.Path == "/api/pricing":
+			_, _ = w.Write([]byte(`{"data":[
+				{"model_name":"gpt-4o-mini","enable_groups":["default","vip"],"supported_endpoint_types":["/v1/chat/completions"]}
+			]}`))
+		case r.URL.Path == "/api/available_model":
+			_, _ = w.Write([]byte(`{"data":{}}`))
+		case r.URL.Path == "/api/user/self":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":7788,"username":"managed-user"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	snapshot, err := syncManagementPlatform(context.Background(), &model.Site{
+		Platform: model.SitePlatformNewAPI,
+		BaseURL:  server.URL,
+	}, &model.SiteAccount{
+		Name:           "managed-user",
+		CredentialType: model.SiteCredentialTypeAccessToken,
+		AccessToken:    "test-access-token",
+		PlatformUserID: &platformUserID,
+		Enabled:        true,
+		AutoSync:       true,
+	})
+	if err != nil {
+		t.Fatalf("syncManagementPlatform returned error: %v", err)
+	}
+
+	modelsByGroup := make(map[string]model.SiteModel)
+	for _, item := range snapshot.models {
+		modelsByGroup[item.GroupKey+"\x00"+item.ModelName] = item
+	}
+
+	if _, ok := modelsByGroup["default\x00gpt-4o-mini"]; !ok {
+		t.Fatalf("expected default group model to exist, got %+v", snapshot.models)
+	}
+	if _, ok := modelsByGroup["vip\x00gpt-4o-mini"]; !ok {
+		t.Fatalf("expected vip group model to be synthesized even when vip already has key, got %+v", snapshot.models)
+	}
+}
+
 func TestSyncManagementPlatformAddsHeuristicResponsesForGPT5(t *testing.T) {
 	platformUserID := 7788
 
