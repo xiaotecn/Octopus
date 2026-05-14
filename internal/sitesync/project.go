@@ -70,9 +70,6 @@ func ProjectAccount(ctx context.Context, accountID int) ([]int, error) {
 		groupKey := model.NormalizeSiteGroupKey(item.GroupKey)
 		item.GroupKey = groupKey
 		item.ModelName = name
-		if !siteModelBelongsToProjectedGroup(item, groupKey) {
-			continue
-		}
 		if strings.TrimSpace(string(item.RouteType)) == "" {
 			item.RouteType = model.InferSiteModelRouteType(item.ModelName)
 		} else {
@@ -516,20 +513,6 @@ func extractSiteModelNames(items []model.SiteModel) []string {
 		}
 	}
 	return names
-}
-
-func siteModelBelongsToProjectedGroup(item model.SiteModel, groupKey string) bool {
-	metadata, ok := model.ParseSiteModelRouteMetadata(item.RouteRawPayload)
-	if !ok || len(metadata.EnableGroups) == 0 {
-		return true
-	}
-	targetGroupKey := model.NormalizeSiteGroupKey(groupKey)
-	for _, explicitGroupKey := range metadata.EnableGroups {
-		if model.NormalizeSiteGroupKey(explicitGroupKey) == targetGroupKey {
-			return true
-		}
-	}
-	return false
 }
 
 // compositeBindingKey 生成复合绑定 key，用于区分同一 tokenGroup 的不同端点格式 Channel

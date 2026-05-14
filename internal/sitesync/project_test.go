@@ -273,6 +273,86 @@ func TestProjectAccountRemovesUnsupportedModelsFromProjectedChannels(t *testing.
 	}
 }
 
+func TestProjectAccountKeepsStoredGroupModelsDespiteExplicitEnableGroups(t *testing.T) {
+	ctx := setupProjectTestDB(t)
+
+	site := &model.Site{
+		Name:     "Projection Explicit Group Site",
+		Platform: model.SitePlatformNewAPI,
+		BaseURL:  "https://example.com",
+		Enabled:  true,
+	}
+	if err := op.SiteCreate(site, ctx); err != nil {
+		t.Fatalf("SiteCreate failed: %v", err)
+	}
+
+	account := &model.SiteAccount{
+		SiteID:         site.ID,
+		Name:           "Primary Account",
+		CredentialType: model.SiteCredentialTypeAccessToken,
+		AccessToken:    "site-access-token",
+		Enabled:        true,
+		AutoSync:       false,
+		AutoCheckin:    false,
+	}
+	if err := op.SiteAccountCreate(account, ctx); err != nil {
+		t.Fatalf("SiteAccountCreate failed: %v", err)
+	}
+
+	if err := dbpkg.GetDB().WithContext(ctx).Create(&model.SiteToken{
+		SiteAccountID: account.ID,
+		Name:          "default",
+		Token:         "key-primary",
+		GroupKey:      "default",
+		GroupName:     "default",
+		Enabled:       true,
+	}).Error; err != nil {
+		t.Fatalf("create site token failed: %v", err)
+	}
+
+	payload := model.SiteModelRouteMetadata{
+		Source:                 "/api/pricing",
+		RouteSupported:         true,
+		RouteType:              model.SiteModelRouteTypeOpenAIResponse,
+		EnableGroups:           []string{"plus"},
+		SupportedEndpointTypes: []string{"openai"},
+		HeuristicEndpointTypes: []string{"/v1/responses"},
+		NormalizedEndpointTypes: []string{
+			string(model.SiteModelRouteTypeOpenAIChat),
+			string(model.SiteModelRouteTypeOpenAIResponse),
+		},
+	}.Marshal()
+
+	if err := dbpkg.GetDB().WithContext(ctx).Create(&model.SiteModel{
+		SiteAccountID:   account.ID,
+		GroupKey:        "default",
+		ModelName:       "gpt-5.4",
+		Source:          "sync",
+		RouteType:       model.SiteModelRouteTypeOpenAIResponse,
+		RouteSource:     model.SiteModelRouteSourceSyncInferred,
+		RouteRawPayload: payload,
+	}).Error; err != nil {
+		t.Fatalf("create site model failed: %v", err)
+	}
+
+	channelIDs, err := ProjectAccount(ctx, account.ID)
+	if err != nil {
+		t.Fatalf("ProjectAccount returned error: %v", err)
+	}
+	if len(channelIDs) != 1 {
+		t.Fatalf("expected one projected channel, got %d", len(channelIDs))
+	}
+
+	channelsByGroup := loadProjectedChannelsByGroupKey(t, ctx, account.ID)
+	channel, ok := channelsByGroup["default::openai-response"]
+	if !ok {
+		t.Fatalf("expected default openai-response projected channel, got %+v", channelsByGroup)
+	}
+	if channel.Model != "gpt-5.4" {
+		t.Fatalf("expected projected channel to keep stored default-group model, got %q", channel.Model)
+	}
+}
+
 func TestProjectAccountReusesOrphanManagedChannelWithSameName(t *testing.T) {
 	ctx := setupProjectTestDB(t)
 
