@@ -142,6 +142,7 @@ func buildSiteChannelCard(ctx context.Context, site model.Site) (model.SiteChann
 func buildSiteChannelGroups(ctx context.Context, site model.Site, account model.SiteAccount, historyMap map[string]*model.SiteModelHistorySummary) []model.SiteChannelGroup {
 	split := siteChannelShouldSplitByOutboundType(site)
 	groups := make(map[string]*model.SiteChannelGroup)
+	modelSeen := make(map[string]struct{})
 	projectedChannels := make(map[int]*model.Channel)
 	for _, group := range account.UserGroups {
 		key := model.NormalizeSiteGroupKey(group.GroupKey)
@@ -203,27 +204,32 @@ func buildSiteChannelGroups(ctx context.Context, site model.Site, account model.
 		}
 	}
 	for _, item := range account.Models {
-		key := model.NormalizeSiteGroupKey(item.GroupKey)
-		if !siteModelBelongsToGroup(item, key) {
-			continue
-		}
-		group := ensureSiteChannelGroup(groups, key, key)
+		targetGroupKeys := siteModelTargetGroupKeys(item)
 		routeMetadata, _ := model.ParseSiteModelRouteMetadata(item.RouteRawPayload)
-		channelID, hasChannel := findProjectedChannelID(account.ChannelBindings, key, item.RouteType, split)
-		modelView := model.SiteChannelModel{
-			ModelName:      item.ModelName,
-			RouteType:      model.NormalizeSiteModelRouteType(item.RouteType),
-			RouteSource:    model.NormalizeSiteModelRouteSource(item.RouteSource, item.ManualOverride),
-			ManualOverride: item.ManualOverride,
-			Disabled:       item.Disabled,
-			RouteMetadata:  routeMetadata,
-			History:        historyMap[key+"\x00"+item.ModelName],
+		for _, key := range targetGroupKeys {
+			group := ensureSiteChannelGroup(groups, key, key)
+			modelKey := key + "\x00" + strings.TrimSpace(item.ModelName)
+			if _, ok := modelSeen[modelKey]; ok {
+				continue
+			}
+			modelSeen[modelKey] = struct{}{}
+
+			channelID, hasChannel := findProjectedChannelID(account.ChannelBindings, key, item.RouteType, split)
+			modelView := model.SiteChannelModel{
+				ModelName:      item.ModelName,
+				RouteType:      model.NormalizeSiteModelRouteType(item.RouteType),
+				RouteSource:    model.NormalizeSiteModelRouteSource(item.RouteSource, item.ManualOverride),
+				ManualOverride: item.ManualOverride,
+				Disabled:       item.Disabled,
+				RouteMetadata:  routeMetadata,
+				History:        historyMap[key+"\x00"+item.ModelName],
+			}
+			if hasChannel {
+				id := channelID
+				modelView.ProjectedChannelID = &id
+			}
+			group.Models = append(group.Models, modelView)
 		}
-		if hasChannel {
-			id := channelID
-			modelView.ProjectedChannelID = &id
-		}
-		group.Models = append(group.Models, modelView)
 	}
 	result := make([]model.SiteChannelGroup, 0, len(groups))
 	for _, item := range groups {
@@ -246,6 +252,26 @@ func buildSiteChannelGroups(ctx context.Context, site model.Site, account model.
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].GroupKey < result[j].GroupKey })
 	return result
+}
+
+func siteModelTargetGroupKeys(item model.SiteModel) []string {
+	metadata, ok := model.ParseSiteModelRouteMetadata(item.RouteRawPayload)
+	if ok && len(metadata.EnableGroups) > 0 {
+		seen := make(map[string]struct{}, len(metadata.EnableGroups))
+		result := make([]string, 0, len(metadata.EnableGroups))
+		for _, groupKey := range metadata.EnableGroups {
+			normalized := model.NormalizeSiteGroupKey(groupKey)
+			if _, exists := seen[normalized]; exists {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			result = append(result, normalized)
+		}
+		if len(result) > 0 {
+			return result
+		}
+	}
+	return []string{model.NormalizeSiteGroupKey(item.GroupKey)}
 }
 
 func siteModelBelongsToGroup(item model.SiteModel, groupKey string) bool {
