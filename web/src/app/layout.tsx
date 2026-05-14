@@ -64,34 +64,34 @@ export default function RootLayout({
           name: siteTitle,
           short_name: (siteTitle || defaultSiteTitle).slice(0, 12) || defaultSiteTitle,
           description: siteTitle,
-          id: './',
-          start_url: './',
-          scope: './',
+          id: '/',
+          start_url: '/',
+          scope: '/',
+          lang: 'zh-CN',
+          dir: 'ltr',
           display: 'standalone',
           orientation: 'any',
           theme_color: defaultThemeColor,
           background_color: defaultBackgroundColor,
-          icons: siteLogoDataURL ? [
-            { src: siteLogoDataURL, sizes: '512x512', type: iconType, purpose: 'any' },
-            { src: siteLogoDataURL, sizes: '512x512', type: iconType, purpose: 'maskable' }
-          ] : []
+          categories: ['utilities', 'productivity', 'developer tools'],
+          icons: [
+            { src: siteLogoDataURL || '/web-app-manifest-192x192.png', sizes: '192x192', type: siteLogoDataURL ? iconType : 'image/png', purpose: 'any' },
+            { src: siteLogoDataURL || '/web-app-manifest-512x512.png', sizes: '512x512', type: siteLogoDataURL ? iconType : 'image/png', purpose: 'any' },
+            { src: siteLogoDataURL || '/web-app-manifest-512x512.png', sizes: '512x512', type: siteLogoDataURL ? iconType : 'image/png', purpose: 'maskable' }
+          ]
         };
       };
       const syncManifest = (siteTitle, siteLogoDataURL) => {
         const manifest = ensureLink('manifest');
         const prevHref = manifest.getAttribute('href') || '';
-        if (siteLogoDataURL) {
-          if (prevHref.startsWith('blob:')) {
-            try { URL.revokeObjectURL(prevHref); } catch {}
-          }
-          const blob = new Blob(
-            [JSON.stringify(buildManifestObject(siteTitle, siteLogoDataURL))],
-            { type: 'application/manifest+json' }
-          );
-          manifest.setAttribute('href', URL.createObjectURL(blob));
-        } else {
-          manifest.setAttribute('href', defaultManifestPath);
+        if (prevHref.startsWith('blob:')) {
+          try { URL.revokeObjectURL(prevHref); } catch {}
         }
+        const blob = new Blob(
+          [JSON.stringify(buildManifestObject(siteTitle, siteLogoDataURL))],
+          { type: 'application/manifest+json' }
+        );
+        manifest.setAttribute('href', URL.createObjectURL(blob));
       };
 
       try {

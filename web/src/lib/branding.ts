@@ -40,8 +40,8 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
     const trimmedLogo = siteLogoDataURL.trim();
     const iconTypeMatch = trimmedLogo.match(/^data:(image\/[^;]+);/i);
     const iconType = iconTypeMatch?.[1] || 'image/png';
-    const fallbackIcon192 = './web-app-manifest-192x192.png';
-    const fallbackIcon512 = './web-app-manifest-512x512.png';
+    const fallbackIcon192 = '/web-app-manifest-192x192.png';
+    const fallbackIcon512 = '/web-app-manifest-512x512.png';
     const iconSrc = trimmedLogo || fallbackIcon512;
     const shortcutIconSrc = trimmedLogo || fallbackIcon192;
 
@@ -49,9 +49,9 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
         name: trimmedTitle,
         short_name: trimmedTitle.slice(0, 12) || DEFAULT_SITE_TITLE,
         description: trimmedTitle,
-        id: './',
-        start_url: './',
-        scope: './',
+        id: '/',
+        start_url: '/',
+        scope: '/',
         lang: 'zh-CN',
         dir: 'ltr',
         display: 'standalone',
@@ -82,27 +82,28 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
         screenshots: [
             {
                 src: './screenshot/desktop-home.png',
+                src: '/screenshot/desktop-home.png',
                 sizes: '1437x918',
                 type: 'image/png',
                 form_factor: 'wide',
                 label: '首页仪表盘',
             },
             {
-                src: './screenshot/desktop-channel.png',
+                src: '/screenshot/desktop-channel.png',
                 sizes: '1437x918',
                 type: 'image/png',
                 form_factor: 'wide',
                 label: '渠道管理',
             },
             {
-                src: './screenshot/mobile-home.png',
+                src: '/screenshot/mobile-home.png',
                 sizes: '1290x2796',
                 type: 'image/png',
                 form_factor: 'narrow',
                 label: '移动端首页',
             },
             {
-                src: './screenshot/mobile-channel.png',
+                src: '/screenshot/mobile-channel.png',
                 sizes: '1290x2796',
                 type: 'image/png',
                 form_factor: 'narrow',
@@ -113,7 +114,7 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
             {
                 name: '渠道管理',
                 short_name: '渠道',
-                url: './',
+                url: '/',
                 icons: [
                     {
                         src: shortcutIconSrc,
@@ -125,7 +126,7 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
             {
                 name: '模型价格管理',
                 short_name: '价格',
-                url: './',
+                url: '/',
                 icons: [
                     {
                         src: shortcutIconSrc,
@@ -137,7 +138,7 @@ export function buildBrandingManifest(siteTitle: string, siteLogoDataURL: string
             {
                 name: '分组管理',
                 short_name: '分组',
-                url: './',
+                url: '/',
                 icons: [
                     {
                         src: shortcutIconSrc,

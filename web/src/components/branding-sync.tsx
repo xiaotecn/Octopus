@@ -68,17 +68,13 @@ export function BrandingSync() {
             URL.revokeObjectURL(manifestUrlRef.current);
             manifestUrlRef.current = null;
         }
-        if (branding.siteLogoDataURL) {
-            const manifestBlob = new Blob(
-                [JSON.stringify(buildBrandingManifest(branding.siteTitle, branding.siteLogoDataURL))],
-                { type: 'application/manifest+json' },
-            );
-            const manifestUrl = URL.createObjectURL(manifestBlob);
-            manifestUrlRef.current = manifestUrl;
-            syncManifest(manifestUrl);
-        } else {
-            syncManifest(DEFAULT_MANIFEST_PATH);
-        }
+        const manifestBlob = new Blob(
+            [JSON.stringify(buildBrandingManifest(branding.siteTitle, branding.siteLogoDataURL))],
+            { type: 'application/manifest+json' },
+        );
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        manifestUrlRef.current = manifestUrl;
+        syncManifest(manifestUrl);
 
         try {
             const payload = JSON.stringify(toBrandingCacheValue(branding));
