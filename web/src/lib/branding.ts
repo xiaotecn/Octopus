@@ -1,8 +1,8 @@
 import type { Branding } from '@/api/endpoints/setting';
 
-export const DEFAULT_SITE_TITLE = 'Octopus';
-export const DEFAULT_FAVICON_PATH = '/favicon.ico';
-export const DEFAULT_APPLE_ICON_PATH = '/apple-icon.png';
+export const DEFAULT_SITE_TITLE = '奇点公益站';
+export const DEFAULT_FAVICON_PATH = '/jsongj_com.png';
+export const DEFAULT_APPLE_ICON_PATH = '/jsongj_com.png';
 export const DEFAULT_MANIFEST_PATH = '/manifest.json';
 export const BRANDING_CACHE_KEY = 'octopus-branding';
 export const DEFAULT_THEME_COLOR = '#EAE9E3';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useBranding } from '@/api/endpoints/setting';
-import { buildBranding } from '@/lib/branding';
+import { buildBranding, DEFAULT_FAVICON_PATH } from '@/lib/branding';
 import { cn } from '@/lib/utils';
 import Logo from '.';
 
@@ -26,6 +26,17 @@ export default function BrandLogo({
         return (
             <img
                 src={branding.siteLogoDataURL}
+                alt={alt || branding.siteTitle}
+                style={sizeStyle}
+                className={cn('shrink-0 object-contain', className)}
+            />
+        );
+    }
+
+    if (!animate) {
+        return (
+            <img
+                src={DEFAULT_FAVICON_PATH}
                 alt={alt || branding.siteTitle}
                 style={sizeStyle}
                 className={cn('shrink-0 object-contain', className)}

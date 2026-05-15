@@ -11,7 +11,7 @@ import { FieldDescription } from '@/components/ui/field';
 import { useSettingStore, type Locale } from '@/stores/setting';
 import { SettingKey, useSetSetting, useSettingList } from '@/api/endpoints/setting';
 import { toast } from '@/components/common/Toast';
-import Logo from '@/components/modules/logo';
+import { DEFAULT_FAVICON_PATH } from '@/lib/branding';
 
 const MAX_LOGO_FILE_SIZE = 512 * 1024;
 
@@ -203,7 +203,11 @@ export function SettingAppearance() {
                                     className="h-10 w-10 object-contain"
                                 />
                             ) : (
-                                <Logo size={40} />
+                                <img
+                                    src={DEFAULT_FAVICON_PATH}
+                                    alt={siteTitle || t('branding.logo.label')}
+                                    className="h-10 w-10 object-contain"
+                                />
                             )}
                         </div>
                         <div className="flex gap-2">
