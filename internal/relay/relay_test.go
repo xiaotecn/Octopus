@@ -328,6 +328,171 @@ func TestHandlerPassthroughsOpenAIResponsesRawTools(t *testing.T) {
 	}
 }
 
+func TestHandlerTransformsAnthropicRequestToOpenAIResponsesNonStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx := setupRelayTestDB(t)
+
+	var capturedBody []byte
+	var seenAnthropicVersion string
+	var seenAnthropicBeta string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/responses" {
+			http.Error(w, `{"error":"unexpected path"}`, http.StatusNotFound)
+			return
+		}
+		seenAnthropicVersion = r.Header.Get("Anthropic-Version")
+		seenAnthropicBeta = r.Header.Get("anthropic-beta")
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read upstream request body failed: %v", err)
+		}
+		capturedBody = append([]byte(nil), body...)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"resp_1","object":"response","created_at":1,"model":"gpt-5.4","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}],"status":"completed","usage":{"input_tokens":2,"input_tokens_details":{"cached_tokens":0},"output_tokens":1,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":3}}`))
+	}))
+	defer server.Close()
+
+	channel := &model.Channel{
+		Name:     "relay-anthropic-to-responses-non-stream",
+		Type:     outbound.OutboundTypeOpenAIResponse,
+		Enabled:  true,
+		BaseUrls: []model.BaseUrl{{URL: server.URL + "/v1"}},
+		Model:    "gpt-5.4",
+		Keys:     []model.ChannelKey{{Enabled: true, ChannelKey: "test-key"}},
+	}
+	if err := op.ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate failed: %v", err)
+	}
+
+	group := &model.Group{Name: "relay-anthropic-to-responses-non-stream-group", Mode: model.GroupModeFailover}
+	if err := op.GroupCreate(group, ctx); err != nil {
+		t.Fatalf("GroupCreate failed: %v", err)
+	}
+	if err := op.GroupItemAdd(&model.GroupItem{GroupID: group.ID, ChannelID: channel.ID, ModelName: "gpt-5.4", Priority: 1, Weight: 1}, ctx); err != nil {
+		t.Fatalf("GroupItemAdd failed: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("api_key_id", 9)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"relay-anthropic-to-responses-non-stream-group","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request.Header.Set("Anthropic-Version", "2023-06-01")
+	c.Request.Header.Set("anthropic-beta", "extended-cache-ttl-2025-04-11")
+
+	Handler(inbound.InboundTypeAnthropic, c)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected anthropic request to succeed via responses channel, got status %d body %s", recorder.Code, recorder.Body.String())
+	}
+	if seenAnthropicVersion != "" {
+		t.Fatalf("expected Anthropic-Version to be stripped for responses upstream, got %q", seenAnthropicVersion)
+	}
+	if seenAnthropicBeta != "" {
+		t.Fatalf("expected anthropic-beta to be stripped for responses upstream, got %q", seenAnthropicBeta)
+	}
+
+	var upstreamPayload map[string]any
+	if err := json.Unmarshal(capturedBody, &upstreamPayload); err != nil {
+		t.Fatalf("unmarshal upstream request failed: %v", err)
+	}
+	if upstreamPayload["model"] != "gpt-5.4" {
+		t.Fatalf("expected model to be rewritten to upstream model, got %#v", upstreamPayload["model"])
+	}
+
+	var downstreamPayload map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &downstreamPayload); err != nil {
+		t.Fatalf("unmarshal anthropic response failed: %v\n%s", err, recorder.Body.String())
+	}
+	if downstreamPayload["type"] != "message" {
+		t.Fatalf("expected anthropic message response, got %#v", downstreamPayload)
+	}
+	content, ok := downstreamPayload["content"].([]any)
+	if !ok || len(content) == 0 {
+		t.Fatalf("expected anthropic content blocks, got %#v", downstreamPayload["content"])
+	}
+	firstBlock, ok := content[0].(map[string]any)
+	if !ok || firstBlock["type"] != "text" || firstBlock["text"] != "ok" {
+		t.Fatalf("expected anthropic text block with ok, got %#v", content[0])
+	}
+}
+
+func TestHandlerTransformsAnthropicRequestToOpenAIResponsesStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx := setupRelayTestDB(t)
+
+	rawSSE := strings.Join([]string{
+		`data: {"type":"response.created","response":{"id":"resp_1","object":"response","model":"gpt-5.4","created_at":1,"output":[],"status":"in_progress"}}`,
+		"",
+		`data: {"type":"response.output_text.delta","delta":"hello"}`,
+		"",
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.4","created_at":1,"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"status":"completed","usage":{"input_tokens":2,"input_tokens_details":{"cached_tokens":0},"output_tokens":1,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":3}}}`,
+		"",
+	}, "\n")
+
+	var seenAnthropicVersion string
+	var seenAnthropicBeta string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenAnthropicVersion = r.Header.Get("Anthropic-Version")
+		seenAnthropicBeta = r.Header.Get("anthropic-beta")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(rawSSE))
+	}))
+	defer server.Close()
+
+	channel := &model.Channel{
+		Name:     "relay-anthropic-to-responses-stream",
+		Type:     outbound.OutboundTypeOpenAIResponse,
+		Enabled:  true,
+		BaseUrls: []model.BaseUrl{{URL: server.URL + "/v1"}},
+		Model:    "gpt-5.4",
+		Keys:     []model.ChannelKey{{Enabled: true, ChannelKey: "test-key"}},
+	}
+	if err := op.ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate failed: %v", err)
+	}
+
+	group := &model.Group{Name: "relay-anthropic-to-responses-stream-group", Mode: model.GroupModeFailover}
+	if err := op.GroupCreate(group, ctx); err != nil {
+		t.Fatalf("GroupCreate failed: %v", err)
+	}
+	if err := op.GroupItemAdd(&model.GroupItem{GroupID: group.ID, ChannelID: channel.ID, ModelName: "gpt-5.4", Priority: 1, Weight: 1}, ctx); err != nil {
+		t.Fatalf("GroupItemAdd failed: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("api_key_id", 10)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"relay-anthropic-to-responses-stream-group","max_tokens":16,"stream":true,"messages":[{"role":"user","content":"hello"}]}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request.Header.Set("Anthropic-Version", "2023-06-01")
+	c.Request.Header.Set("anthropic-beta", "extended-cache-ttl-2025-04-11")
+
+	Handler(inbound.InboundTypeAnthropic, c)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected anthropic stream request to succeed via responses channel, got status %d body %s", recorder.Code, recorder.Body.String())
+	}
+	if seenAnthropicVersion != "" {
+		t.Fatalf("expected Anthropic-Version to be stripped for responses upstream, got %q", seenAnthropicVersion)
+	}
+	if seenAnthropicBeta != "" {
+		t.Fatalf("expected anthropic-beta to be stripped for responses upstream, got %q", seenAnthropicBeta)
+	}
+
+	body := recorder.Body.String()
+	for _, want := range []string{
+		"event:message_start",
+		`"type":"text_delta"`,
+		`"text":"hello"`,
+		"event:message_stop",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected %q in anthropic SSE output, got %s", want, body)
+		}
+	}
+}
+
 func TestHandlerRejectsResponsesNativeToolsWithoutResponsesChannel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx := setupRelayTestDB(t)

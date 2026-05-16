@@ -871,6 +871,9 @@ func (ra *relayAttempt) copyHeaders(outboundRequest *http.Request) {
 			if hopByHopHeaders[lowerKey] {
 				continue
 			}
+			if shouldDropProviderHeaderForOutbound(lowerKey, ra.channel) {
+				continue
+			}
 			// anthropic-beta 需要与出站默认值合并去重，避免覆盖掉
 			// 透传路径预置的 prompt-caching / extended-cache-ttl 基线。
 			if lowerKey == "anthropic-beta" {
@@ -892,6 +895,40 @@ func (ra *relayAttempt) copyHeaders(outboundRequest *http.Request) {
 		for _, header := range ra.channel.CustomHeader {
 			outboundRequest.Header.Set(header.HeaderKey, header.HeaderValue)
 		}
+	}
+}
+
+func shouldDropProviderHeaderForOutbound(lowerKey string, channel *dbmodel.Channel) bool {
+	if channel == nil {
+		return false
+	}
+
+	switch channel.Type {
+	case outbound.OutboundTypeAnthropic:
+		return isOpenAIProviderHeader(lowerKey)
+	case outbound.OutboundTypeOpenAIChat,
+		outbound.OutboundTypeOpenAIResponse,
+		outbound.OutboundTypeOpenAIEmbedding,
+		outbound.OutboundTypeVolcengine:
+		return isAnthropicProviderHeader(lowerKey)
+	default:
+		return isAnthropicProviderHeader(lowerKey) || isOpenAIProviderHeader(lowerKey)
+	}
+}
+
+func isAnthropicProviderHeader(lowerKey string) bool {
+	if lowerKey == "anthropic-version" || lowerKey == "anthropic-beta" {
+		return true
+	}
+	return strings.HasPrefix(lowerKey, "anthropic-")
+}
+
+func isOpenAIProviderHeader(lowerKey string) bool {
+	switch lowerKey {
+	case "openai-organization", "openai-project", "openai-beta":
+		return true
+	default:
+		return false
 	}
 }
 
